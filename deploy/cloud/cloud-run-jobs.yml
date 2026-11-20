@@ -1,0 +1,44 @@
+# Cloud profile — STUB. No manifest in this file is applied yet.
+#
+# Cloud runs the same `apps/core` and `packages/*` as every other mode, on a managed host,
+# with everything that cannot be serverless moved out of the request path:
+#
+#   core      managed host (Vercel today; see `vercel.json` at the repository root)
+#   database  managed PostgreSQL, reached over TLS
+#   storage   object storage — FILE_STORAGE_BACKEND=s3 or gcs, never a local directory
+#   workers   one-shot jobs, one per queue, instead of INLINE_WORKERS=true
+#   identity  OAuth / admin JWT; local practice accounts are a LAN feature
+#
+# TODO(cloud): add, before this folder drives a real deployment.
+#   1. One Cloud Run job per queue (report, analysis, scribe, billing, email), built from
+#      `apps/runtime`, with a timeout shorter than its schedule interval.
+#   2. The image, region and service account for each job, in place of the placeholders
+#      below.
+#   3. Secrets wiring — JWT_SECRET, DATABASE_URL, OPENAI_API_KEY and storage credentials
+#      come from the platform's secret store, never from a committed file.
+#   4. An infrastructure checklist beside this file: managed database tier, backups,
+#      egress rules, and PRIVATE_OVERLAY_REQUIRED=1 for a branded deployment
+#      (docs/architecture/domain-extension.md).
+#
+# The skeleton stays commented out, and its placeholders are deliberately invalid, so an
+# unfinished copy of this file cannot be applied by accident.
+
+# apiVersion: run.googleapis.com/v1
+# kind: Job
+# metadata:
+#   name: practice-manager-<queue>
+# spec:
+#   template:
+#     spec:
+#       parallelism: 1
+#       taskCount: 1
+#       template:
+#         spec:
+#           timeoutSeconds: <shorter than the schedule interval>
+#           containers:
+#             - image: <REGION>-docker.pkg.dev/<PROJECT>/practice-manager/runtime:<TAG>
+#               env:
+#                 - name: DATABASE_URL
+#                   value: <managed-postgres-url-with-sslmode-require>
+#                 - name: PRACTICE_MANAGER_EDITION
+#                   value: cloud

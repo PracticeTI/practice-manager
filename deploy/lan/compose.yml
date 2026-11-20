@@ -1,0 +1,36 @@
+# LAN profile — STUB. Nothing in this file is wired up yet.
+#
+# A LAN install is the solo stack behind a reverse proxy that terminates TLS, with the
+# worker cycles in their own container and — once more than one workstation reaches the
+# database — PostgreSQL outside this compose project.
+#
+# Intended invocation, once the TODOs below are resolved:
+#
+#   docker compose \
+#     -f deploy/docker/compose.yml \
+#     -f deploy/lan/compose.yml \
+#     --env-file deploy/lan/env/lan.env \
+#     up -d --build
+#
+# `deploy/lan/env/lan.env` does not exist yet; add it beside this file, starting from
+# deploy/docker/env/solo.env.example.
+#
+# TODO(lan): fill in this overlay before a practice runs it.
+#   1. Proxy — publish 80/443 on a reverse-proxy service and give `core` no published
+#      ports, so TLS termination and the certificate live in one place.
+#   2. Certificates — choose ACME or an operator-supplied pair, and document renewal.
+#   3. Workers — run `apps/runtime` as a sidecar service and set INLINE_WORKERS=false on
+#      `core`, so a slow report never blocks a request.
+#   4. Database — keep the compose `db` service or point DATABASE_URL at a shared
+#      PostgreSQL; switch to sslmode=require the moment it leaves this host.
+#   5. Storage — point FILE_STORAGE_DIR at a shared volume or NAS (docs/file-storage.md).
+#   6. Branding — set PRIVATE_OVERLAY_REQUIRED=1 when the practice domain comes from an
+#      extension layer, so a build without it fails instead of serving the default domain.
+#   7. Backups — add the dump/restore scripts this folder is meant to carry.
+#
+# The empty mapping keeps the file valid as an override and changes nothing until a
+# service is added above it.
+
+name: practice-manager
+
+services: {}

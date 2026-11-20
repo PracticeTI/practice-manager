@@ -1,0 +1,81 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Environment files (the example is tracked)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Logs and OS files
+*.log
+.DS_Store
+
+# Test/coverage output
+coverage/
+
+# Private overlay: copied files, their manifest, generated bridge modules, and the
+# overlay checkout itself. Without an overlay these are absent or empty stubs.
+# `npm run private:guard` is the authority: it fails if the overlay writes a path this
+# list does not exclude.
+.private-overlay.json
+.private-overlay-src/
+apps/core/src/private/
+apps/core/src/lib/privateDomains.js
+apps/core/src/lib/privateDomains.data.js
+apps/core/src/lib/landings.json
+apps/core/src/lib/fcaReviewToken.js
+apps/core/src/components/privateLandings.jsx
+apps/core/tailwind.private.cjs
+apps/core/src/app/private-overlay-sources.css
+apps/core/docs/licensing-trademark.md
+apps/core/src/components/AsenticLanding.jsx
+apps/core/src/components/PracticeTiContactForm.jsx
+apps/core/src/app/asentic/
+apps/core/src/app/trafford/
+apps/core/src/app/southeastot*/
+apps/core/src/app/practice-ti/
+apps/core/src/app/westsideot/
+apps/core/src/app/contact/
+apps/core/src/app/api/contact/
+apps/core/src/app/api/southeastot/
+apps/core/src/app/api/fca-review/
+apps/core/src/app/fca-review/
+apps/core/src/app/api/settings/southeastot-*/
+apps/core/src/app/api/settings/trafford-*/
+apps/core/src/app/api/settings/novi-*/
+# Public assets are overlay-supplied: the core ships only the unbranded default lockup.
+apps/core/public/*
+!apps/core/public/.gitkeep
+!apps/core/public/branding/
+apps/core/content/templates/allied-health/domains/*/
+# TAC assessment instruments: third-party content the AGPL grant cannot cover (docs/licensing.md).
+apps/core/content/templates/allied-health/OT/
+apps/core/docs/southeastot/
+apps/core/docs/trafford/
+apps/core/scripts/generate-asentic-og-image.mjs
+apps/core/scripts/migrate-trafford-domain.mjs
+apps/core/scripts/migrate-hero-thumbnail-storage.mjs
+apps/core/scripts/capture-fca-review-reports.mjs
+apps/core/scripts/copy-patient-for-demo.mjs
+apps/core/scripts/migrate-content-domain-column.mjs
+apps/core/scripts/seed-amelia-brooks-reporting-sample.mjs
+apps/core/scripts/sync-southeastot-fca-template.mjs
+apps/core/scripts/trace-mask-icon.mjs
+apps/core/scripts/create-fca-review-link.mjs
+apps/core/test/privateDomainDefaults.test.js
+apps/core/test/fcaReviewReports.test.mjs
+apps/core/test/fcaReviewToken.test.js
+apps/core/test/healthRoute.test.js
+apps/core/test/publicApiRoutes.test.js
+
+# Local compose environment files (the example is tracked)
+deploy/docker/env/*.env
+
+# Desktop packaging output
+deploy/desktop/.stage/
+apps/desktop/release/

@@ -1,0 +1,55 @@
+# Core application image (Solo / LAN). Build from the repository root:
+#   docker build -f deploy/docker/Dockerfile.core -t practice-manager-core .
+#
+# The workspace root owns the lockfile, so the image installs there and builds the core
+# workspace. Worker cycles ship inside this image because a single-install deployment runs
+# them in-process (INLINE_WORKERS=true) instead of deploying apps/runtime.
+
+FROM node:24-alpine AS deps
+WORKDIR /app
+
+# Only the manifests are needed to resolve the workspace tree.
+COPY package.json package-lock.json .npmrc ./
+COPY apps/core/package.json apps/core/package.json
+COPY packages/jobs/package.json packages/jobs/package.json
+RUN npm ci
+
+FROM node:24-alpine AS build
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# A developer may have a private overlay synced into the tree. Strip those copies so the
+# public image is always built from the unbranded default; a branded build mounts its
+# overlay through PRIVATE_OVERLAY_DIR instead.
+RUN npm run private:clean --workspace @practice-manager/core
+
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# Standalone does not copy these itself; Next documents them as the host's responsibility.
+RUN cp -r apps/core/.next/static apps/core/.next/standalone/apps/core/.next/static \
+ && cp -r apps/core/public apps/core/.next/standalone/apps/core/public \
+ && cp -r apps/core/content apps/core/.next/standalone/apps/core/content
+
+FROM node:24-alpine AS runtime
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
+
+# curl is used by the compose healthcheck.
+RUN apk add --no-cache curl
+
+COPY --from=build /app ./
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD curl -fsS http://localhost:3000/api/health >/dev/null || exit 1
+
+# `output: standalone` requires its own server; `next start` is not supported with it.
+WORKDIR /app/apps/core/.next/standalone/apps/core
+CMD ["node", "server.js"]

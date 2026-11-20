@@ -1,0 +1,257 @@
+@import "tailwindcss";
+@import "./private-overlay-sources.css";
+@config "../../tailwind.config.cjs";
+
+/*
+ * Tailwind v4 defaults borders to `currentColor`; keep the v3 default (gray-200)
+ * for borders that don't set an explicit color.
+ */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+}
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 255, 255, 255;
+  --border-rgb: 229, 231, 235;
+  --text-secondary-rgb: 107, 114, 128;
+}
+
+body {
+  @apply bg-white text-gray-900;
+  color: rgb(var(--foreground-rgb));
+}
+
+/* Functional, minimal typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  @apply font-semibold tracking-tight;
+}
+
+/* Minimal button styles */
+button,
+input[type="button"],
+input[type="submit"] {
+  @apply transition-colors duration-150;
+}
+
+/* Input field styling - minimal */
+input,
+textarea,
+select {
+  @apply border border-gray-300 rounded px-3 py-2 text-gray-900 transition-colors;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  @apply outline-none border-gray-400 ring-1 ring-gray-400;
+}
+
+/* Minimal cards and containers */
+.card {
+  @apply border border-gray-200 rounded bg-white;
+}
+
+.card-elevated {
+  @apply border border-gray-200 rounded bg-white;
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-3%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes scrollRevealIn {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scroll-reveal-hidden {
+  opacity: 0;
+  transform: translateY(28px);
+}
+
+.scroll-reveal-animate {
+  animation: scrollRevealIn 0.7s ease both;
+}
+
+@keyframes globalPageFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes globalScrollFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+body.global-page-fade-in {
+  animation: globalPageFadeIn 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+body.global-page-fade-in .global-scroll-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  will-change: opacity, transform;
+}
+
+body.global-page-fade-in .global-scroll-reveal.global-scroll-reveal-visible {
+  animation: globalScrollFadeUp 760ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.global-page-fade-in {
+    animation: none !important;
+  }
+
+  body.global-page-fade-in .global-scroll-reveal,
+  body.global-page-fade-in .global-scroll-reveal.global-scroll-reveal-visible {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* Mobile Safari specific fixes for smooth animations */
+@media (max-width: 768px) {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  aside,
+  [class*="slide"],
+  [class*="translate"] {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000;
+    perspective: 1000;
+  }
+}
+
+@layer components {
+
+  /* Mobile slide animations for articles and draft cards */
+  .slide-in-panel {
+    will-change: transform;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000;
+    perspective: 1000;
+  }
+
+  .slide-in-panel.open {
+    animation: slideInFromRight 300ms ease-out forwards;
+  }
+
+  .slide-in-panel.closed {
+    animation: slideOutToRight 300ms ease-out forwards;
+  }
+
+  .slide-in-panel-left {
+    will-change: transform;
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+
+  .slide-in-panel-left.open {
+    animation: slideInFromLeft 320ms ease-out forwards;
+  }
+
+  .admin-card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200;
+  }
+
+  .admin-btn {
+    @apply rounded-xl border border-gray-300 bg-white text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 hover:shadow active:scale-[0.98];
+  }
+
+  .admin-btn-active {
+    @apply rounded-xl border border-gray-400 bg-gray-200 text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all hover:bg-gray-100 hover:border-gray-500 active:scale-[0.98];
+  }
+
+  .admin-btn-primary {
+    @apply rounded-xl border border-gray-300 bg-white text-gray-900 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 hover:shadow active:scale-[0.98];
+  }
+
+  .admin-btn-danger {
+    @apply rounded-xl border border-red-300 bg-white text-red-700 shadow-sm transition-all hover:bg-red-50 hover:border-red-400 active:scale-[0.98];
+  }
+
+  .admin-input {
+    @apply w-full px-4 py-2 border border-gray-300 rounded-xl bg-white text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900;
+  }
+
+  .admin-select {
+    @apply px-3 py-2 border border-gray-300 rounded-xl bg-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900;
+  }
+
+  .admin-icon-btn {
+    @apply h-9 w-9 inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white text-lg text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 hover:shadow hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+}

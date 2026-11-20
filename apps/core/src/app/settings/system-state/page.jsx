@@ -1,0 +1,1 @@
+export { default } from '../../admin/settings/system-state/page'

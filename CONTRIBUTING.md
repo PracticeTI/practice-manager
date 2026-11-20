@@ -1,8 +1,8 @@
 # Contributing
 
-Thanks for your interest in contributing to Practice Manager. The project is
-being established, so development setup and contribution-specific checks will
-be documented here as they become available.
+Thanks for your interest in contributing to Practice Manager. Development setup and
+the commands to build, test and run the app are in the
+[Development section of the README](README.md#development).
 
 ## Before contributing
 

@@ -1,0 +1,85 @@
+name: Release
+
+# A push to the integration branch cuts a release: semantic-release derives the version from the
+# Conventional Commits since the last tag, then updates the manifests, CHANGELOG.md and tag.
+# The manual dispatch exists to preview a release without publishing one.
+on:
+  push:
+    branches: [preview]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Compute the next version and release notes without publishing a release
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Never run two releases concurrently and never cancel one that is mid-flight.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Reads the app's .nvmrc so the CI runtime cannot drift from the pinned version.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'apps/core/.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Gate the release on the repository's own lint rules. `npm run lint` exits non-zero on
+      # errors, so a lint regression fails here instead of shipping in a published release.
+      - name: Lint
+        run: npm run lint
+
+      # A push straight to preview skips the pull-request workflow, so the private overlay guard
+      # runs here too: a customer asset committed by mistake blocks the release instead of
+      # publishing it.
+      - name: No private overlay files
+        run: node apps/core/scripts/check-private-files.mjs
+
+  release:
+    name: Release
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the release commit and tag, create the GitHub release
+      issues: write # comment on issues resolved by the release
+      pull-requests: write # comment on pull requests included in the release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # semantic-release needs the full history and all tags to find the previous release.
+          fetch-depth: 0
+
+      # Reads the app's .nvmrc so the CI runtime cannot drift from the pinned version.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'apps/core/.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release
+        env:
+          # Provide a RELEASE_TOKEN secret (PAT or GitHub App token) when preview is protected
+          # and the workflow's own token cannot bypass that protection.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: npx semantic-release ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}

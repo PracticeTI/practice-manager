@@ -1,0 +1,170 @@
+import { detectDatabaseType } from '../database.js'
+
+const DEFAULT_TABLE = 'patient_report_jobs'
+
+function isSafeSqlIdentifier(value) {
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(String(value || ''))
+}
+
+export function resolveReportQueueTableName() {
+    const table = String(process.env.REPORT_QUEUE_TABLE || DEFAULT_TABLE).trim()
+    if (!isSafeSqlIdentifier(table)) {
+        throw new Error('REPORT_QUEUE_TABLE must be a safe SQL identifier (letters, numbers, underscore)')
+    }
+    return table
+}
+
+function getSchemaStatements(table, dbType) {
+    if (dbType === 'postgresql') {
+        return {
+            create: `
+      CREATE TABLE IF NOT EXISTS ${table} (
+        id BIGSERIAL PRIMARY KEY,
+        status VARCHAR(32) NOT NULL DEFAULT 'queued',
+        domain VARCHAR(100) NOT NULL,
+        patient_id BIGINT NOT NULL,
+        patient_name TEXT,
+        event_type VARCHAR(80) NOT NULL DEFAULT 'reporting_enabled',
+        requested_action VARCHAR(80) NOT NULL DEFAULT 'create_or_edit',
+        payload_json TEXT NOT NULL DEFAULT '{}',
+                usage_model VARCHAR(120),
+                usage_input_tokens BIGINT,
+                usage_output_tokens BIGINT,
+                usage_total_tokens BIGINT,
+                usage_estimated_cost_usd DOUBLE PRECISION,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        max_attempts INTEGER,
+        next_attempt_at TIMESTAMP NULL,
+        claimed_at TIMESTAMP NULL,
+        claimed_by VARCHAR(128),
+        completed_at TIMESTAMP NULL,
+        error_message TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `,
+            additions: [
+                'ADD COLUMN IF NOT EXISTS status VARCHAR(32) NOT NULL DEFAULT \'queued\'',
+                'ADD COLUMN IF NOT EXISTS domain VARCHAR(100) NOT NULL DEFAULT \'\'',
+                'ADD COLUMN IF NOT EXISTS patient_id BIGINT NOT NULL DEFAULT 0',
+                'ADD COLUMN IF NOT EXISTS patient_name TEXT',
+                'ADD COLUMN IF NOT EXISTS event_type VARCHAR(80) NOT NULL DEFAULT \'reporting_enabled\'',
+                'ADD COLUMN IF NOT EXISTS requested_action VARCHAR(80) NOT NULL DEFAULT \'create_or_edit\'',
+                'ADD COLUMN IF NOT EXISTS payload_json TEXT NOT NULL DEFAULT \'{}\'',
+                'ADD COLUMN IF NOT EXISTS usage_model VARCHAR(120)',
+                'ADD COLUMN IF NOT EXISTS usage_input_tokens BIGINT',
+                'ADD COLUMN IF NOT EXISTS usage_output_tokens BIGINT',
+                'ADD COLUMN IF NOT EXISTS usage_total_tokens BIGINT',
+                'ADD COLUMN IF NOT EXISTS usage_estimated_cost_usd DOUBLE PRECISION',
+                'ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0',
+                'ADD COLUMN IF NOT EXISTS max_attempts INTEGER',
+                'ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMP NULL',
+                'ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMP NULL',
+                'ADD COLUMN IF NOT EXISTS claimed_by VARCHAR(128)',
+                'ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL',
+                'ADD COLUMN IF NOT EXISTS error_message TEXT',
+                'ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
+                'ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP'
+            ],
+            indexes: [
+                `CREATE INDEX IF NOT EXISTS ${table}_status_next_attempt_idx ON ${table} (status, next_attempt_at)`,
+                `CREATE INDEX IF NOT EXISTS ${table}_domain_created_idx ON ${table} (domain, created_at)`
+            ]
+        }
+    }
+
+    if (dbType === 'mysql') {
+        return {
+            create: `
+      CREATE TABLE IF NOT EXISTS ${table} (
+        id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        status VARCHAR(32) NOT NULL DEFAULT 'queued',
+        domain VARCHAR(100) NOT NULL,
+        patient_id BIGINT NOT NULL,
+        patient_name TEXT,
+        event_type VARCHAR(80) NOT NULL DEFAULT 'reporting_enabled',
+        requested_action VARCHAR(80) NOT NULL DEFAULT 'create_or_edit',
+        payload_json LONGTEXT NOT NULL,
+                usage_model VARCHAR(120) NULL,
+                usage_input_tokens BIGINT NULL,
+                usage_output_tokens BIGINT NULL,
+                usage_total_tokens BIGINT NULL,
+                usage_estimated_cost_usd DOUBLE NULL,
+        attempts INT NOT NULL DEFAULT 0,
+        max_attempts INT NULL,
+        next_attempt_at DATETIME NULL,
+        claimed_at DATETIME NULL,
+        claimed_by VARCHAR(128) NULL,
+        completed_at DATETIME NULL,
+        error_message TEXT,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX ${table}_status_next_attempt_idx (status, next_attempt_at),
+        INDEX ${table}_domain_created_idx (domain, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `,
+            additions: [
+                'ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT \'queued\'',
+                'ADD COLUMN domain VARCHAR(100) NOT NULL',
+                'ADD COLUMN patient_id BIGINT NOT NULL',
+                'ADD COLUMN patient_name TEXT',
+                'ADD COLUMN event_type VARCHAR(80) NOT NULL DEFAULT \'reporting_enabled\'',
+                'ADD COLUMN requested_action VARCHAR(80) NOT NULL DEFAULT \'create_or_edit\'',
+                'ADD COLUMN payload_json LONGTEXT NOT NULL',
+                'ADD COLUMN usage_model VARCHAR(120) NULL',
+                'ADD COLUMN usage_input_tokens BIGINT NULL',
+                'ADD COLUMN usage_output_tokens BIGINT NULL',
+                'ADD COLUMN usage_total_tokens BIGINT NULL',
+                'ADD COLUMN usage_estimated_cost_usd DOUBLE NULL',
+                'ADD COLUMN attempts INT NOT NULL DEFAULT 0',
+                'ADD COLUMN max_attempts INT NULL',
+                'ADD COLUMN next_attempt_at DATETIME NULL',
+                'ADD COLUMN claimed_at DATETIME NULL',
+                'ADD COLUMN claimed_by VARCHAR(128) NULL',
+                'ADD COLUMN completed_at DATETIME NULL',
+                'ADD COLUMN error_message TEXT',
+                'ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP',
+                'ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'
+            ],
+            indexes: [
+                `CREATE INDEX ${table}_status_next_attempt_idx ON ${table} (status, next_attempt_at)`,
+                `CREATE INDEX ${table}_domain_created_idx ON ${table} (domain, created_at)`
+            ]
+        }
+    }
+
+    throw new Error(`Unsupported database type for report queue writes: ${dbType}`)
+}
+
+export async function ensureReportQueueTable(connection, dbType, table = resolveReportQueueTableName()) {
+    const schema = getSchemaStatements(table, dbType)
+    await connection.query(schema.create)
+
+    for (const addition of schema.additions) {
+        try {
+            await connection.query(`ALTER TABLE ${table} ${addition}`)
+        } catch (error) {
+            const message = String(error?.message || '')
+            if (!message.includes('Duplicate') && !message.includes('already exists')) {
+                throw error
+            }
+        }
+    }
+
+    for (const indexStatement of schema.indexes) {
+        try {
+            await connection.query(indexStatement)
+        } catch (error) {
+            const message = String(error?.message || '')
+            const duplicate = message.includes('Duplicate key name') || message.includes('already exists')
+            if (!duplicate) {
+                throw error
+            }
+        }
+    }
+}
+
+export function reportQueueAvailable() {
+    const dbType = detectDatabaseType()
+    return dbType === 'postgresql' || dbType === 'mysql'
+}
