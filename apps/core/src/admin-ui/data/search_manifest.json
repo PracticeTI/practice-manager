@@ -1,0 +1,37 @@
+{
+  "name": "Admin Search Test Strings",
+  "version": "1.0.0",
+  "updatedAt": "2026-01-28T00:00:00.000Z",  "neighborhoods": [
+    "Times Square",
+    "Chelsea",
+    "Brooklyn Bridge",
+    "Central Park",
+    "SoHo",
+    "Greenwich Village",
+    "Upper West Side",
+    "Upper East Side",
+    "Midtown",
+    "Lower East Side",
+    "Financial District",
+    "Tribeca",
+    "Brooklyn",
+    "Williamsburg",
+    "Park Slope",
+    "Prospect Park",
+    "Carnegie Hall",
+    "Lincoln Center",
+    "Grand Central",
+    "Herald Square"
+  ],  "tests": [
+    {
+      "id": "example-1",
+      "label": "Sample production search",
+      "query": "Brooklyn detective"
+    },
+    {
+      "id": "openai-web-search-1",
+      "label": "OpenAI Responses API + web search tool",
+      "query": "Find the most high-profile or notable Netflix TV or movie production that has been filming in New York recently. Return only ONE production with the title, production company (Netflix, HBO, Apple TV+, etc.), details, dates, and up to 3 sources with links. Use web search tool in the request."
+    }
+  ]
+}

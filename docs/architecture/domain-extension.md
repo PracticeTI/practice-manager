@@ -26,6 +26,7 @@ An extension layer may contain any of the following, using the same shape as the
 | Brand imagery and fonts | `apps/core/public/` |
 | Report and document templates | `apps/core/content/` |
 | A hosting profile for the operator's environment | `deploy/cloud/<profile>/` |
+| `/api` routes that must stay reachable without a session — exported as `PRIVATE_PUBLIC_API_ROUTES` | `apps/core/src/lib/privateDomains.data.js`, next to the descriptors |
 
 Domain descriptors must stay **pure data** — no React, no Next.js imports — because
 edge middleware and build configuration read them before any React runtime exists.

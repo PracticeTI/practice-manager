@@ -1,0 +1,47 @@
+# electron-builder configuration for the Solo (Desktop) installer.
+#
+#   npm run build
+#   npm run prepare:standalone --workspace @practice-manager/desktop
+#   npm run package:dir --workspace @practice-manager/desktop      # unpacked .app
+#   npm run package --workspace @practice-manager/desktop          # installers
+#
+# The application code ships as `resources/app/standalone` (a Next.js standalone server);
+# the Electron bundle only contains the shell. The operator supplies Node.js and
+# PostgreSQL — neither is bundled.
+
+appId: app.practicemanager.desktop
+productName: Practice Manager
+copyright: Practice Manager contributors
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - main/**/*
+  - preload/**/*
+  - src/**/*
+  - package.json
+
+extraResources:
+  - from: ../../deploy/desktop/.stage/standalone
+    to: app/standalone
+
+asar: true
+
+mac:
+  category: public.app-category.medical
+  # Signing and notarisation are configured per release; local builds are unsigned.
+  identity: null
+  target:
+    - dmg
+    - zip
+
+win:
+  target:
+    - nsis
+
+linux:
+  category: Office
+  target:
+    - AppImage

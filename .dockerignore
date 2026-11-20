@@ -1,0 +1,24 @@
+# Build context trimming for the Docker images.
+node_modules
+**/node_modules
+.next
+**/.next
+.git
+**/.DS_Store
+*.log
+coverage
+
+# Local environment files can hold credentials and must never enter an image.
+**/.env
+**/.env.*
+!**/.env.example
+
+# Private customer overlay: never bake the operator checkout into a public image.
+# The manifest stays in the context so the image build can remove synced copies first.
+# Operators building a branded image supply the overlay explicitly instead.
+.private-overlay-src
+apps/core/src/private
+
+# Desktop packaging output
+deploy/desktop/.stage
+apps/desktop/release

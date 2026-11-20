@@ -1,0 +1,25 @@
+{
+  "name": "@practice-manager/jobs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Worker cycles and queue-table helpers, runnable as a service or inline in the core app.",
+  "exports": {
+    ".": "./src/index.js",
+    "./driver": "./src/driver.js",
+    "./enqueue": "./src/enqueue.js",
+    "./queues": "./src/queues.js",
+    "./read": "./src/read.js",
+    "./workerRunAuth": "./src/jobs/workerRunAuth.js"
+  },
+  "engines": {
+    "node": ">=22.13.0 <23 || >=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "jobs:once": "node src/cli.js"
+  },
+  "dependencies": {
+    "pg": "^8.17.2"
+  }
+}

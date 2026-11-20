@@ -1,0 +1,65 @@
+# Solo (Docker) stack: one application container plus its database.
+#
+#   cp deploy/docker/env/solo.env.example deploy/docker/env/solo.env
+#   docker compose -f deploy/docker/compose.yml --env-file deploy/docker/env/solo.env up -d --build
+#
+# The core container runs the queue workers itself (INLINE_WORKERS=true), so there is no
+# separate runtime service. LAN and Cloud profiles arrive as additional files rather than
+# extra services here: deploy/lan/compose.yml (still a stub) and deploy/cloud/.
+
+name: practice-manager
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-practice}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/docker/env/solo.env}
+      POSTGRES_DB: ${POSTGRES_DB:-practice_manager}
+    volumes:
+      - pm-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Not published: only the application container needs to reach the database.
+
+  core:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.core
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # `sslmode=disable` is correct here: the database is only reachable on the compose
+      # network and never published. Add TLS before exposing a database to a LAN.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-practice}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-practice_manager}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/docker/env/solo.env}
+      # Single-install: queue writes and worker cycles stay inside this container, and the
+      # admin portal is the entry point (there is no public website).
+      INLINE_WORKERS: "true"
+      PRACTICE_MANAGER_EDITION: "solo"
+      REPORT_WORKER_ENABLED: "true"
+      ANALYSIS_WORKER_ENABLED: "true"
+      SCRIBE_WORKER_ENABLED: "true"
+      BILLING_WORKER_ENABLED: "true"
+      EMAIL_WORKER_ENABLED: "true"
+      # AI features are optional and off until a key is supplied.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "${PM_PORT:-3000}:3000"
+    # The image ships a standalone server; `next start` is not supported with that output.
+    working_dir: /app
+    # A first install has no tables. The bootstrap is idempotent, so running it on every
+    # start costs a few queries and removes a whole class of "works on my machine".
+    command:
+      - sh
+      - -c
+      - npm run db:init --workspace @practice-manager/core && node apps/core/.next/standalone/apps/core/server.js
+
+volumes:
+  pm-db:

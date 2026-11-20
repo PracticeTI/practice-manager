@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A pull request is re-tested on every push; cancel the superseded run instead of queueing it.
+# Deliberately no `paths-ignore`: if this check is ever made required for a branch, a skipped
+# workflow leaves the check pending and can block merging.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Reads the app's .nvmrc so the CI runtime cannot drift from the pinned version.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'apps/core/.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Same check as the Lint job in release.yml: `npm run lint` exits non-zero on errors, so a
+      # lint regression fails the pull request. Warnings do not fail the build.
+      - name: Lint
+        run: npm run lint
+
+      # The patient-data egress boundary is only real while every model call goes through
+      # apps/core/src/lib/privacy. These two suites need no database or network, and fail on a
+      # module that reaches a model vendor without the guard. The rest of `npm test` is not gated
+      # here yet: the OTF10 layout suite needs fixture files that are not committed.
+      - name: Privacy boundary
+        run: node --test apps/core/test/privacy.test.js apps/core/test/privacyEgress.test.js
+
+  private-overlay:
+    name: Private overlay
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Reads the app's .nvmrc so the CI runtime cannot drift from the pinned version.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'apps/core/.nvmrc'
+
+      # `apps/core/scripts/sync-private-overlay.mjs` copies the private domains into the app layout
+      # and .gitignore lists every destination. A tracked file that those rules exclude means an
+      # overlay copy was committed, so the customer assets would ship in the public repository.
+      # Runs before `npm ci` on purpose: this job must see the checked-out tree, not a mounted
+      # overlay. CI has no private submodule, so the manifest-based half of the guard is local.
+      - name: No private overlay files
+        run: node apps/core/scripts/check-private-files.mjs
+
+      - name: Guard tests
+        run: node --test apps/core/test/privateOverlayGuard.test.js

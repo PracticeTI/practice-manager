@@ -1,0 +1,29 @@
+{
+  "name": "@practice-manager/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Desktop shell: prerequisite checks and first-run setup for a single-install deployment.",
+  "engines": {
+    "node": ">=22.13.0 <23 || >=24"
+  },
+  "scripts": {
+    "start": "electron .",
+    "serve": "node src/cli.js serve",
+    "preflight": "node src/cli.js preflight",
+    "setup": "node src/cli.js setup",
+    "test": "node --test \"test/**/*.test.js\"",
+    "prepare:standalone": "node ../../deploy/desktop/prepare-standalone.mjs",
+    "package:dir": "electron-builder --config ../../deploy/desktop/electron-builder.yml --dir",
+    "package": "electron-builder --config ../../deploy/desktop/electron-builder.yml"
+  },
+  "dependencies": {
+    "pg": "^8.17.2"
+  },
+  "main": "main/index.cjs",
+  "devDependencies": {
+    "electron": "45.3.3",
+    "electron-builder": "^26.0.0"
+  },
+  "author": "Practice Manager contributors"
+}
