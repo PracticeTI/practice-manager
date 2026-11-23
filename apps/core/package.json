@@ -8,10 +8,10 @@
     "node": ">=22.13.0 <23 || >=24"
   },
   "scripts": {
-    "predev": "node scripts/check-node-version.mjs && node scripts/sync-private-overlay.mjs",
+    "predev": "node scripts/check-node-version.mjs && node --env-file-if-exists=.env.local scripts/sync-private-overlay.mjs",
     "dev": "npm run dev:free-port && next dev -p 3000",
     "dev:free-port": "node scripts/free-port.mjs 3000",
-    "prebuild": "node scripts/check-node-version.mjs && node scripts/sync-private-overlay.mjs",
+    "prebuild": "node scripts/check-node-version.mjs && node --env-file-if-exists=.env.local scripts/sync-private-overlay.mjs",
     "build": "next build --webpack",
     "postbuild": "node -e \"const fs=require('fs');fs.mkdirSync('.next',{recursive:true});fs.closeSync(fs.openSync('.next/lock','a'));\"",
     "start": "next start",
@@ -44,7 +44,7 @@
     "db:init": "node --env-file-if-exists=.env.local --import ./scripts/alias-hooks.mjs scripts/db-init.mjs",
     "test": "node --import ./scripts/alias-hooks.mjs --test \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
     "test:rls": "node --import ./scripts/alias-hooks.mjs --test test/postgresRlsContext.test.js && node --import ./scripts/alias-hooks.mjs --env-file=.env.local --test test/patientFilesRls.integration.test.js",
-    "pretest": "node scripts/sync-private-overlay.mjs"
+    "pretest": "node --env-file-if-exists=.env.local scripts/sync-private-overlay.mjs"
   },
   "dependencies": {
     "@practice-manager/jobs": "*",
