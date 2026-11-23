@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/PracticeTI/practice-manager/tree/main/docs
+    about: Setup, deployment, architecture and security guides.
+  - name: Contributing guide
+    url: https://github.com/PracticeTI/practice-manager/blob/main/CONTRIBUTING.md
+    about: How to contribute, including the Developer Certificate of Origin.

@@ -1,0 +1,85 @@
+name: Maintenance
+description: Refactoring, dependencies or infrastructure
+title: '[Maintenance]: '
+labels: ['type: maintenance']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for flagging maintenance work. Do not include patient-identifying or otherwise
+        confidential data.
+
+  - type: textarea
+    id: work
+    attributes:
+      label: What needs maintenance
+      description: What is out of date, fragile or costly, and what should replace or fix it?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: work-type
+    attributes:
+      label: Work type
+      description: What kind of maintenance is this?
+      options:
+        - Refactoring
+        - Dependency upgrade
+        - Infrastructure or CI
+        - Developer tooling
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and risk
+      description: What breaks if this is not done, and what could break while doing it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: How to verify
+      description: Checks, tests or manual steps that show the work is complete and nothing regressed.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How soon is this needed? Triagers may adjust it.
+      options:
+        - 'priority: high'
+        - 'priority: medium'
+        - 'priority: low'
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the codebase would this touch?
+      options:
+        - 'area: core'
+        - 'area: runtime'
+        - 'area: database'
+        - 'area: infrastructure'
+      default: 0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This report contains no patient-identifying or confidential data.
+          required: true

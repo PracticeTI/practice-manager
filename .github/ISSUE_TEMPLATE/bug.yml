@@ -1,0 +1,99 @@
+name: Bug
+description: Something isn't working
+title: '[Bug]: '
+labels: ['type: bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include patient-identifying or otherwise
+        confidential data. Replace names, dates and identifiers in logs before pasting them.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What went wrong, and what did you expect instead?
+      placeholder: When I…, the app… but I expected…
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The smallest sequence of steps that reliably triggers the problem.
+      placeholder: |
+        1. Go to…
+        2. Click…
+        3. See…
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment mode
+      description: Where did you see the problem?
+      options:
+        - Solo (desktop)
+        - Solo (Docker)
+        - LAN
+        - Cloud
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The version shown in the footer, if you can see it.
+      placeholder: 1.0.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Relevant logs, error messages or screenshots with sensitive values removed.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How urgently does this need attention? Triagers may adjust it.
+      options:
+        - 'priority: high'
+        - 'priority: medium'
+        - 'priority: low'
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the codebase does this affect?
+      options:
+        - 'area: core'
+        - 'area: runtime'
+        - 'area: database'
+        - 'area: infrastructure'
+      default: 0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This report contains no patient-identifying or confidential data.
+          required: true
