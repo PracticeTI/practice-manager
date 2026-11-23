@@ -1,0 +1,72 @@
+name: Feature
+description: Propose new functionality
+title: '[Feature]: '
+labels: ['type: feature']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping shape Practice Manager. Do not include patient-identifying or
+        otherwise confidential data.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem should this feature solve, and who has it?
+      placeholder: A practice manager needs to…
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should the feature do? Describe the behaviour, not the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches or workarounds you have considered.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How soon is this needed? Triagers may adjust it.
+      options:
+        - 'priority: high'
+        - 'priority: medium'
+        - 'priority: low'
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the codebase would this touch?
+      options:
+        - 'area: core'
+        - 'area: runtime'
+        - 'area: database'
+        - 'area: infrastructure'
+      default: 0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This report contains no patient-identifying or confidential data.
+          required: true
