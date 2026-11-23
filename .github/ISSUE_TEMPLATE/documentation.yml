@@ -1,0 +1,85 @@
+name: Documentation
+description: Guides and technical documentation
+title: '[Docs]: '
+labels: ['type: documentation']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for improving the documentation. Do not include patient-identifying or otherwise
+        confidential data.
+
+  - type: input
+    id: location
+    attributes:
+      label: Document or page
+      description: Link to the page or file, or name the guide that needs work.
+      placeholder: docs/deployment/modes/…
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing
+      description: What is inaccurate, unclear or absent?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should the documentation say or cover instead?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Audience
+      description: Who is the documentation for?
+      options:
+        - End users
+        - Administrators and operators
+        - Contributors and developers
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How soon is this needed? Triagers may adjust it.
+      options:
+        - 'priority: high'
+        - 'priority: medium'
+        - 'priority: low'
+      default: 2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the codebase does this document?
+      options:
+        - 'area: core'
+        - 'area: runtime'
+        - 'area: database'
+        - 'area: infrastructure'
+      default: 0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This report contains no patient-identifying or confidential data.
+          required: true
