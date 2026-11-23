@@ -15,6 +15,10 @@ out/
 *.log
 .DS_Store
 
+# Editor swap/backup files (Vim, and friends)
+*.sw?
+*~
+
 # Test/coverage output
 coverage/
 
