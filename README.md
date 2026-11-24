@@ -84,6 +84,7 @@ Documentation is organised under `docs/`:
 - [`docs/licensing.md`](docs/licensing.md) — licence scope, grant and trademark rule
 - [`docs/product-commitments.md`](docs/product-commitments.md) — free vs paid, funding and governance
 - [`docs/developer-guide/versioning.md`](docs/developer-guide/versioning.md) — versioning and release process
+- [`docs/roadmap/auth.md`](docs/roadmap/auth.md) — admin identity, verified email changes and federated sign-in
 
 ## Development
 
