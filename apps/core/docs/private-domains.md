@@ -160,8 +160,9 @@ this order, and the first source that exists wins:
 | `PRIVATE_OVERLAY_TOKEN` | Token used for the clone. Falls back to `GITHUB_TOKEN`, then `GH_TOKEN` |
 | `PRIVATE_OVERLAY_REQUIRED` | `1`/`true` makes a build with no overlay fail instead of emitting empty stubs |
 
-`predev`, `prebuild` and `pretest` load `.env.local` when present, so a local checkout can be
-selected there with `PRIVATE_OVERLAY_DIR` instead of exporting it in the shell.
+`predev`, `prebuild`, `pretest` and the `private:*` commands load `.env.local` when present, so a
+local checkout can be selected there with `PRIVATE_OVERLAY_DIR` instead of exporting it in the
+shell.
 
 **A build without the overlay still succeeds and looks healthy.** It writes the empty stubs, so
 `VALID_DOMAIN_MODES` contains only the core domains, the overlay routes and assets are absent, and
