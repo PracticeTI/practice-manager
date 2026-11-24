@@ -50,28 +50,31 @@ src/private/                     optional overlay checkout (absent in a public t
 2. copies every overlay directory into the matching project directory;
 3. regenerates `src/lib/privateDomains.js`, `src/components/privateLandings.jsx`,
    `src/app/private-overlay-sources.css` and `tailwind.private.cjs` (theme extensions such as
-   brand colours).
+   brand colours);
+4. rewrites the managed block in `.git/info/exclude` so every written path is ignored locally.
 
 When `src/private` is absent the script writes **empty stubs**, so the app builds and runs as a
 plain public deployment with only the unbranded default domain.
 
-Copied files, the manifest, and the generated modules are gitignored, so private code can never
-be committed here by accident.
+Copied files, the manifest, and the generated modules are ignored by the checkout, so private
+code can never be committed here by accident. The ignore rules for the copies live in
+`.git/info/exclude` — a per-clone file that git never commits — rather than the tracked
+`.gitignore`, which therefore names no private domain.
 
 ### Why the overlay needs explicit Tailwind sources
 
-Tailwind v4's automatic source detection honours `.gitignore`, and every overlay copy is
-gitignored. Overlay markup was therefore only scanned when the overlay's own tree sat inside the
-project (`src/private/overlay`); a hosted build that mounts it elsewhere — a shallow clone in
-`.private-overlay-src`, or a `PRIVATE_OVERLAY_DIR` outside the checkout — still built the routes
-but shipped them **without the overlay's utility classes**, so branded pages lost their layout on
-that host alone while local `npm run dev` looked correct.
+Tailwind v4's automatic source detection honours the checkout's ignore rules, and every overlay
+copy is excluded by them. Overlay markup was therefore only scanned when the overlay's own tree
+sat inside the project (`src/private/overlay`); a hosted build that mounts it elsewhere — a
+shallow clone in `.private-overlay-src`, or a `PRIVATE_OVERLAY_DIR` outside the checkout — still
+built the routes but shipped them **without the overlay's utility classes**, so branded pages
+lost their layout on that host alone while local `npm run dev` looked correct.
 
 [`src/app/globals.css`](../src/app/globals.css) imports the generated
 `src/app/private-overlay-sources.css`, which holds one `@source` line per mounted markup file.
 Explicit `@source` entries are not filtered by the ignore rules. They are written per file rather
-than per directory because a directory source only reaches gitignored children when the directory
-itself is gitignored.
+than per directory because a directory source only reaches excluded children when the directory
+itself is excluded.
 
 ## Commands
 
@@ -89,20 +92,22 @@ Run `private:clean` and `private:check` before publishing anything from this rep
 `npm run private:sync` writes the overlay into the public layout, so during development each
 private file exists twice: once in `src/private/overlay/` (the source of truth) and once at its
 public path (a working copy that Next.js can build). Nothing is symlinked — the script copies
-files, and `.gitignore` lists every destination it writes, which is why the copies never reach
-this repository.
+files, and records every destination in the checkout-local `.git/info/exclude`, which is why the
+copies never reach this repository. Because that file is per-clone, the tracked `.gitignore`
+never names a private domain.
 
 Two guards enforce that, both running [`scripts/check-private-files.mjs`](../scripts/check-private-files.mjs):
 
 | Guard | Where | Catches |
 |-------|-------|---------|
-| Pre-push hook | `.githooks/pre-push`, installed by `npm install` (`prepare` sets `core.hooksPath`) | A pushed commit that adds a path the last mount produced (read from `.private-overlay.json`), and an overlay destination `.gitignore` does not exclude (read from `src/private/overlay`) |
-| `Private overlay` job in [ci.yml](../../../.github/workflows/ci.yml), plus a step in the `Lint` job of [release.yml](../../../.github/workflows/release.yml) | CI, on every pull request and every push to `preview` | Any tracked file that `.gitignore` excludes — i.e. an overlay copy that was committed |
+| Pre-push hook | `.githooks/pre-push`, installed by `npm install` (`prepare` sets `core.hooksPath`) | A pushed commit that adds a path the last mount produced (read from `.private-overlay.json`), and an overlay destination the ignore rules do not cover (read from `src/private/overlay`, or the last mount's manifest) |
+| `Private overlay` job in [ci.yml](../../../.github/workflows/ci.yml), plus a step in the `Lint` job of [release.yml](../../../.github/workflows/release.yml) | CI, on every pull request and every push to `preview` | Any tracked file the ignore rules exclude — i.e. an overlay copy that was committed |
 
 CI has no private submodule, so it sees only the ignore rules; the hook additionally knows the
 exact paths the overlay produced and the folders it is about to produce. Adding a domain folder
-to the private repository therefore fails the next push until `.gitignore` lists it, instead of
-silently creating a new gap. Neither guard needs the private repository to run in CI.
+to the private repository therefore fails the next push until `npm run private:sync` refreshes the
+checkout-local exclude rules, instead of silently creating a new gap. Neither guard needs the
+private repository to run in CI.
 
 Because the working copies are just copies, they are disposable: deleting `public/` or
 `src/app/<domain>/` costs nothing, and `npm run private:sync` recreates them byte for byte.

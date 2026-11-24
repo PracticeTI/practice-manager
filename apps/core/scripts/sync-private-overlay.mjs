@@ -16,8 +16,9 @@
  *   overlay/docs/...       -> docs/...
  *   overlay/content/...    -> content/...           (report templates)
  *
- * Copied paths are recorded in `.private-overlay.json` and gitignored, so the public
- * working tree never gains private files by accident. Two generated modules bridge the
+ * Copied paths are recorded in `.private-overlay.json` and excluded through the
+ * checkout-local `.git/info/exclude` (written by this script), so the public `.gitignore`
+ * never names a private domain. Two generated modules bridge the
  * overlay into the public code:
  *
  *   src/lib/privateDomains.js          - domain descriptors (server/edge safe)
@@ -47,6 +48,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 import { DEST_ROOTS, NON_COPIED_DIRS } from './private-overlay-paths.mjs'
+import { clearExcludeBlock, writeExcludeBlock } from './private-overlay-excludes.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const submoduleOverlayRoot = path.join(repoRoot, 'src/private/overlay')
@@ -322,13 +324,13 @@ module.exports = ${JSON.stringify(parsed, null, 2)}
 /**
  * `@source` directives for the mounted overlay.
  *
- * Tailwind v4's automatic source detection skips every path `.gitignore` excludes, and the
- * overlay is copied only into gitignored destinations. Its markup was therefore scanned
- * solely through the overlay's own tree, which a hosted build may not have (a shallow
+ * Tailwind v4's automatic source detection skips paths excluded by the checkout's ignore
+ * rules, and the overlay is copied only into excluded destinations. Its markup was therefore
+ * scanned solely through the overlay's own tree, which a hosted build may not have (a shallow
  * clone, a mounted directory), and customer pages shipped without their utilities.
  * Explicit `@source` paths are not filtered by the ignore rules. They are registered per
- * file rather than per directory because registering a directory only reaches gitignored
- * children when that directory is gitignored itself.
+ * file rather than per directory because registering a directory only reaches excluded
+ * children when that directory is excluded itself.
  */
 function buildTailwindSources(destinations) {
   const specifiers = destinations
@@ -394,6 +396,7 @@ export const PRIVATE_PUBLIC_API_ROUTES = Array.isArray(privateDomainData.PRIVATE
   writeGenerated(tailwindSourcesPath, buildTailwindSources(copied), written)
 
   fs.writeFileSync(manifestPath, `${JSON.stringify({ files: written }, null, 2)}\n`)
+  writeExcludeBlock(repoRoot, written)
   log(`mounted ${written.length} overlay files from ${path.relative(repoRoot, overlayRoot)}`)
 }
 
@@ -421,6 +424,7 @@ if (cleanMode) {
   writeGenerated(landingsPath, EMPTY_LANDINGS, [])
   writeGenerated(tailwindThemePath, EMPTY_TAILWIND_THEME, [])
   writeGenerated(tailwindSourcesPath, EMPTY_TAILWIND_SOURCES, [])
+  clearExcludeBlock(repoRoot)
   log('unmounted the private overlay')
   process.exit(0)
 }
@@ -444,6 +448,7 @@ if (!overlayRoot) {
   writeGenerated(landingsPath, EMPTY_LANDINGS, [])
   writeGenerated(tailwindThemePath, EMPTY_TAILWIND_THEME, [])
   writeGenerated(tailwindSourcesPath, EMPTY_TAILWIND_SOURCES, [])
+  clearExcludeBlock(repoRoot)
   log('no private submodule present - generated empty domain registry')
   process.exit(0)
 }
