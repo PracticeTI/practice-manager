@@ -31,7 +31,7 @@ import {
 } from '@/lib/domainPageStyles'
 import ScrollReveal from '@/components/ScrollReveal'
 import { PRIVATE_LANDING_COMPONENTS } from '@/components/privateLandings'
-import { getHomepageHeroSettingsEndpoint, hasPrivateDomainTrait } from '@/lib/domainExtension'
+import { getHomepageHeroSettingsEndpoint, getPrivateDomainHeroAvatar, hasPrivateDomainTrait } from '@/lib/domainExtension'
 import { readStoredDefaultDomain } from '@/lib/defaultDomainPreference'
 
 const PRIVATE_LANDINGS = Object.fromEntries(
@@ -420,7 +420,7 @@ export default function HomePage() {
   const bottomLinkedInCtaHref = buildLinkedInProfileHref(bottomLinkedInUsername)
   const heroHeading = String(heroSectionConfig?.heading || '').trim()
   const heroSubheading = String(heroSectionConfig?.subheading || '').trim()
-  const heroLogoImage = normalizePublicAssetUrl(heroSectionConfig?.logoImage)
+  const heroLogoImage = normalizePublicAssetUrl(getPrivateDomainHeroAvatar(domainMode) || heroSectionConfig?.logoImage)
   const heroPostId = String(heroSectionConfig?.postId || heroSectionConfig?.selectedPostId || '').trim()
   const heroPostSlug = String(heroSectionConfig?.postSlug || heroSectionConfig?.selectedPostSlug || '').trim().toLowerCase()
   const heroPostType = String(heroSectionConfig?.postType || heroSectionConfig?.selectedPostType || '').trim().toLowerCase()

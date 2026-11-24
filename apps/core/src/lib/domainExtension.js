@@ -22,6 +22,8 @@
  * @property {string} [canonicalOrigin] - Preferred origin for metadata/sitemap.
  * @property {string} [siteDescription] - Default meta description.
  * @property {string} [ogAsset] - Public path to the default Open Graph image.
+ * @property {string} [heroAvatar] - Public path to the homepage hero portrait; when set
+ *   it replaces the hero logo image stored in homepage settings.
  * @property {boolean} [thumbnailBackedOg] - Use the thumbnail-backed OG renderer.
  * @property {boolean} [exactRoute] - Host requests rewrite to `/<key>` instead of keeping the path.
  * @property {boolean} [sharedRoot] - Host is a shared root domain, so paths are never prefixed.
@@ -323,6 +325,21 @@ export function getPrivateDomainFcaBuilderArtwork(mode) {
   if (!normalizedMode) return ''
   const domain = DOMAINS.find((entry) => normalize(entry.key) === normalizedMode)
   return String(domain?.fcaBuilderHeroArtwork || domain?.reportArtwork || '').trim()
+}
+
+/**
+ * Portrait for a private domain's homepage hero. When declared, it replaces the hero
+ * logo image stored in homepage settings, so the portrait lives with the code instead
+ * of the database. Returns '' when the domain declares none.
+ *
+ * @param {string} mode
+ * @returns {string}
+ */
+export function getPrivateDomainHeroAvatar(mode) {
+  const normalizedMode = normalize(mode)
+  if (!normalizedMode) return ''
+  const domain = DOMAINS.find((entry) => normalize(entry.key) === normalizedMode)
+  return String(domain?.heroAvatar || '').trim()
 }
 
 /** Private domain modes that declare a truthy `field`. */
