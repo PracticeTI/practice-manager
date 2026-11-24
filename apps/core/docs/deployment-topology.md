@@ -103,6 +103,20 @@ For worker freshness, use [`GET /env-health`](../src/app/env-health/route.js) wi
 `env_health_<name>` and returns HTTP 200 only when `workersRan` is `true` and its timestamp
 is within the past two hours; missing, stale, or unsuccessful records return HTTP 503.
 
+## Skipping builds for documentation
+
+[`ignoreCommand`](../vercel.json) runs
+[`scripts/check-docs-only-change.mjs`](../scripts/check-docs-only-change.mjs) before Vercel
+installs anything. The script exits 0 — Vercel skips the build — only when every changed path is
+documentation: markdown anywhere, or the repository-level `docs/` tree. It diffs from the
+repository root rather than from `apps/core`, because the app bundles `packages/` at build time
+and a change there has to rebuild. Every failure path (no checkout, a shallow clone without the
+parent commit, a git error) exits 1, so the rule can waste a build but never hide one.
+
+Redeploys run the same check, with **Use project's Ignore Build Step** ticked in the redeploy
+dialog. Untick it when the new deployment is the point — after changing environment variables,
+for example.
+
 ## Developer-only tooling
 
 Provider hero capture is a **workstation workflow**, not a deployed feature. It shells out
