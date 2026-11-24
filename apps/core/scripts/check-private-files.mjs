@@ -3,15 +3,17 @@
  * Fail when private overlay files would enter the public repository.
  *
  * `scripts/sync-private-overlay.mjs` copies the private overlay into the public layout, and
- * `.gitignore` lists every destination it writes. Three invariants keep those copies out of
- * this repository's history:
+ * records every destination in the checkout-local `.git/info/exclude` (see
+ * `private-overlay-excludes.mjs`). Three invariants keep those copies out of this
+ * repository's history:
  *
  *   1. No tracked file may match an ignore rule. A file that is tracked *and* ignored means
  *      someone committed an overlay copy (or a stale ignore entry hides a file it should not).
  *   2. No pushed commit may add a path the overlay produces. This is checked against
  *      `.private-overlay.json`, the manifest of the last mount.
  *   3. Every path the overlay would write must be excluded by the ignore rules, so a newly
- *      added private folder cannot silently escape the list. Needs the submodule on disk.
+ *      added private folder cannot silently escape the list. Uses the mounted overlay tree
+ *      when it is on disk, and the last mount's manifest otherwise.
  *
  * All three run from the pre-push hook (`.githooks/pre-push`). CI runs invariant 1: it has no
  * private submodule, so the manifest and the overlay tree are not there to compare.
@@ -56,7 +58,7 @@ function checkTrackedIgnoredFiles() {
 
   for (const relativePath of output.split('\0').filter(Boolean)) {
     report(
-      `${relativePath} is tracked but ignored by .gitignore - it is an overlay copy that must not be committed.\n` +
+      `${relativePath} is tracked but ignored - it is an overlay copy that must not be committed.\n` +
         `  fix: git rm --cached "${relativePath}"`
     )
   }
@@ -108,10 +110,23 @@ function checkRanges(ranges, overlayPaths) {
   }
 }
 
+/** Overlay tree for coverage checks: PRIVATE_OVERLAY_DIR, then the git submodule. */
+function resolveOverlayRoot() {
+  const explicitDir = String(process.env.PRIVATE_OVERLAY_DIR || '').trim()
+  if (explicitDir) {
+    const resolved = path.resolve(repoRoot, explicitDir)
+    if (fs.existsSync(resolved)) return resolved
+  }
+
+  const submoduleOverlayRoot = path.join(repoRoot, 'src/private/overlay')
+  return fs.existsSync(submoduleOverlayRoot) ? submoduleOverlayRoot : null
+}
+
 /** Invariant 3: every path the overlay writes must be excluded by the ignore rules. */
-function checkIgnoreCoverage() {
-  const destinations = listOverlayDestinations(path.join(repoRoot, 'src/private/overlay'))
-  // No submodule and nothing mounted (CI, or a public-only checkout): nothing to compare.
+function checkIgnoreCoverage(overlayPaths) {
+  const overlayRoot = resolveOverlayRoot()
+  // Without the overlay tree, fall back to the last mount's manifest (generated files included).
+  const destinations = overlayRoot ? listOverlayDestinations(overlayRoot) : [...overlayPaths]
   if (destinations.length === 0) return
 
   let output = ''
@@ -131,8 +146,8 @@ function checkIgnoreCoverage() {
   for (const destination of destinations) {
     if (ignored.has(destination)) continue
     report(
-      `${destination} is written by the private overlay but .gitignore does not exclude it.\n` +
-        '  fix: add it to the private domain overlay section of .gitignore'
+      `${destination} is written by the private overlay but no ignore rule excludes it.\n` +
+        '  fix: run `npm run private:sync` to refresh the checkout-local exclude rules'
     )
   }
 }
@@ -148,8 +163,9 @@ for (let index = 2; index < process.argv.length; index += 1) {
 }
 
 checkTrackedIgnoredFiles()
-checkIgnoreCoverage()
-checkRanges(ranges, readOverlayPaths())
+const overlayPaths = readOverlayPaths()
+checkIgnoreCoverage(overlayPaths)
+checkRanges(ranges, overlayPaths)
 
 if (problems.length > 0) {
   process.stderr.write(`[private-guard] refusing to publish private overlay files:\n  ${problems.join('\n  ')}\n`)

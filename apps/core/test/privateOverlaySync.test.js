@@ -7,8 +7,8 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-/** The sync script plus the module it shares with the overlay guard. */
-const scriptSources = ['sync-private-overlay.mjs', 'private-overlay-paths.mjs'].map((name) =>
+/** The sync script plus the modules it shares with the overlay guard. */
+const scriptSources = ['sync-private-overlay.mjs', 'private-overlay-paths.mjs', 'private-overlay-excludes.mjs'].map((name) =>
     path.join(repoRoot, 'scripts', name)
 )
 
@@ -19,6 +19,7 @@ function createProject() {
     for (const scriptSource of scriptSources) {
         fs.copyFileSync(scriptSource, path.join(root, 'scripts', path.basename(scriptSource)))
     }
+    spawnSync('git', ['init', '-q'], { cwd: root })
     return root
 }
 
@@ -64,6 +65,12 @@ test('mounts the submodule overlay and generates both bridge modules', () => {
 
     const manifest = JSON.parse(fs.readFileSync(path.join(root, '.private-overlay.json'), 'utf8'))
     assert.ok(manifest.files.includes('src/app/acme/page.jsx'))
+
+    const excludes = fs.readFileSync(path.join(root, '.git/info/exclude'), 'utf8')
+    assert.match(excludes, /# >>> private overlay/)
+    assert.match(excludes, /^\/src\/app\/acme\/page\.jsx$/m)
+    assert.match(excludes, /^\/public\/acme\/logo\.png$/m)
+    assert.match(excludes, /^\/src\/lib\/privateDomains\.js$/m)
 })
 
 test('writes empty stubs when no overlay source is available', () => {
@@ -89,7 +96,7 @@ test('registers mounted overlay markup as Tailwind sources', () => {
 
     assert.equal(status, 0, stdout)
     const sources = fs.readFileSync(path.join(root, 'src/app/private-overlay-sources.css'), 'utf8')
-    // The copies are gitignored, so Tailwind only sees them through an explicit @source.
+    // The copies are excluded from the checkout, so Tailwind only sees them through an explicit @source.
     assert.match(sources, /^@source "\.\/acme\/page\.jsx";$/m)
     assert.doesNotMatch(sources, /logo\.png|landings\.json/)
 })
@@ -141,8 +148,43 @@ test('--clean removes the mounted overlay and regenerates empty stubs', () => {
     assert.equal(fs.existsSync(path.join(root, 'src/lib/privateDomains.data.js')), false)
     assert.equal(fs.existsSync(path.join(root, '.private-overlay.json')), false)
     assert.match(fs.readFileSync(path.join(root, 'src/lib/privateDomains.js'), 'utf8'), /export const PRIVATE_DOMAINS = \[\]/)
+    assert.doesNotMatch(fs.readFileSync(path.join(root, '.git/info/exclude'), 'utf8'), /# >>> private overlay/)
 
     assert.equal(runScript(root, ['--check']).status, 0)
+})
+
+test('keeps unrelated exclude entries while rewriting the managed block', () => {
+    const root = createProject()
+    const excludePath = path.join(root, '.git/info/exclude')
+    fs.writeFileSync(excludePath, '# local rule\nscratch/\n')
+    writeOverlayTree(path.join(root, 'src/private/overlay'))
+
+    assert.equal(runScript(root).status, 0)
+    const mounted = fs.readFileSync(excludePath, 'utf8')
+    assert.match(mounted, /^# local rule$/m)
+    assert.match(mounted, /^scratch\/$/m)
+    assert.match(mounted, /^\/src\/app\/acme\/page\.jsx$/m)
+
+    assert.equal(runScript(root, ['--clean']).status, 0)
+    const cleaned = fs.readFileSync(excludePath, 'utf8')
+    assert.match(cleaned, /^# local rule$/m)
+    assert.match(cleaned, /^scratch\/$/m)
+    assert.doesNotMatch(cleaned, /# >>> private overlay/)
+})
+
+test('escapes paths so gitignore wildcards stay literal', () => {
+    const root = createProject()
+    writeOverlayTree(path.join(root, 'src/private/overlay'))
+    const bracketed = path.join(root, 'src/private/overlay/docs/acme/brief[1].md')
+    fs.mkdirSync(path.dirname(bracketed), { recursive: true })
+    fs.writeFileSync(bracketed, 'md\n')
+
+    assert.equal(runScript(root).status, 0)
+    const excludes = fs.readFileSync(path.join(root, '.git/info/exclude'), 'utf8')
+    assert.match(excludes, /^\/docs\/acme\/brief\\\[1\\\]\.md$/m)
+
+    const ignored = spawnSync('git', ['check-ignore', 'docs/acme/brief[1].md'], { cwd: root, encoding: 'utf8' })
+    assert.equal(ignored.status, 0)
 })
 
 test('--check fails while overlay files remain in the tree', () => {

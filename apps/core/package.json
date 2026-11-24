@@ -19,7 +19,7 @@
     "private:sync": "node --env-file-if-exists=.env.local scripts/sync-private-overlay.mjs",
     "private:clean": "node --env-file-if-exists=.env.local scripts/sync-private-overlay.mjs --clean",
     "private:check": "node --env-file-if-exists=.env.local scripts/sync-private-overlay.mjs --check",
-    "private:guard": "node scripts/check-private-files.mjs",
+    "private:guard": "node --env-file-if-exists=.env.local scripts/check-private-files.mjs",
     "snapshot:weekly": "./scripts/create-weekly-snapshot.sh",
     "snapshot:weekly:install": "./scripts/install-weekly-snapshot-launchd.sh",
     "snapshot:weekly:status": "./scripts/weekly-snapshot-status.sh",
