@@ -3,7 +3,7 @@
  *
  * Shared by `scripts/sync-private-overlay.mjs` (which copies the files) and
  * `scripts/check-private-files.mjs` (which refuses to publish them), so the mapping and the
- * `.gitignore` entries it must match can never disagree.
+ * local exclude rules it must match can never disagree.
  */
 
 import fs from 'node:fs'

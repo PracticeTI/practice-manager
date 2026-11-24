@@ -38,8 +38,15 @@ on pull requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml).
 2. Creates and pushes the `v<version>` git tag.
 3. Commits the new version into `package.json`, `package-lock.json` and `apps/core/package.json`
    and prepends the release notes to [CHANGELOG.md](../../CHANGELOG.md) as
-   `chore(release): <version> [skip ci]`.
+   `chore(release): <version>`.
 4. Publishes a GitHub Release.
+
+The version commit deliberately carries no `[skip ci]`. GitHub treats that keyword on a pull
+request's head commit as a request to skip every workflow, including `opened`, `reopened` and
+`synchronize`, and this commit is the tip of `preview` — so it is the head of the
+`preview` → `main` release pull request. With the keyword, that pull request's required `Lint` and
+`Private overlay` checks would never report and the branch protection rule could never be
+satisfied. `release.yml` skips its own `release` job for the version commit instead.
 
 Nothing is published to the public npm registry — `package.json` is `"private": true` and the npm
 plugin is configured with `npmPublish: false`.
@@ -103,6 +110,15 @@ without creating a tag, commit, or release.
 (`docs:`, `chore:`, `refactor:` …), or when the same commits were already released.
 
 **`Error: ERELEASEBRANCHES`.** semantic-release was run on a branch other than `preview`.
+
+**The `preview` → `main` pull request is blocked on `Lint` / `Private overlay`.** Those checks are
+required on `main`, but GitHub starts no `pull_request` workflow at all when the pull request's
+head commit message contains `[skip ci]` (or `[ci skip]`, `[no ci]`, `[skip actions]`,
+`[actions skip]`) **anywhere in the message, not just in the subject** — so a body that merely
+mentions the keyword suppresses the run too. A release commit is such a head commit, so the checks stay "Expected" and the
+merge stays blocked. If you see this after a version commit was pushed with the keyword, push a
+normal commit to `preview` — the newer head clears the suppression — and fix the commit message
+source rather than adding another keyword.
 
 ## Adding a verification gate
 

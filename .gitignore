@@ -15,13 +15,18 @@ out/
 *.log
 .DS_Store
 
+# Editor swap/backup files (Vim, and friends)
+*.sw?
+*~
+
 # Test/coverage output
 coverage/
 
-# Private overlay: copied files, their manifest, generated bridge modules, and the
-# overlay checkout itself. Without an overlay these are absent or empty stubs.
-# `npm run private:guard` is the authority: it fails if the overlay writes a path this
-# list does not exclude.
+# Private overlay: the per-clone ignore rules for copied files live in `.git/info/exclude`
+# (written by `npm run private:sync`), so this public file never names a private domain.
+# What remains here is the generated manifest, the overlay checkout, the generated bridge
+# modules, and the generic asset/third-party paths that apply even without an overlay.
+# `npm run private:guard` is the authority: it fails if a destination is not excluded.
 .private-overlay.json
 .private-overlay-src/
 apps/core/src/private/
@@ -33,21 +38,6 @@ apps/core/src/components/privateLandings.jsx
 apps/core/tailwind.private.cjs
 apps/core/src/app/private-overlay-sources.css
 apps/core/docs/licensing-trademark.md
-apps/core/src/components/AsenticLanding.jsx
-apps/core/src/components/PracticeTiContactForm.jsx
-apps/core/src/app/asentic/
-apps/core/src/app/client-a/
-apps/core/src/app/client-b*/
-apps/core/src/app/practice-ti/
-apps/core/src/app/client-c/
-apps/core/src/app/contact/
-apps/core/src/app/api/contact/
-apps/core/src/app/api/client-b/
-apps/core/src/app/api/fca-review/
-apps/core/src/app/fca-review/
-apps/core/src/app/api/settings/client-b-*/
-apps/core/src/app/api/settings/client-a-*/
-apps/core/src/app/api/settings/client-d-*/
 # Public assets are overlay-supplied: the core ships only the unbranded default lockup.
 apps/core/public/*
 !apps/core/public/.gitkeep
@@ -55,23 +45,6 @@ apps/core/public/*
 apps/core/content/templates/allied-health/domains/*/
 # TAC assessment instruments: third-party content the AGPL grant cannot cover (docs/licensing.md).
 apps/core/content/templates/allied-health/OT/
-apps/core/docs/client-b/
-apps/core/docs/client-a/
-apps/core/scripts/generate-asentic-og-image.mjs
-apps/core/scripts/migrate-client-a-domain.mjs
-apps/core/scripts/migrate-hero-thumbnail-storage.mjs
-apps/core/scripts/capture-fca-review-reports.mjs
-apps/core/scripts/copy-patient-for-demo.mjs
-apps/core/scripts/migrate-content-domain-column.mjs
-apps/core/scripts/seed-example-patient-reporting-sample.mjs
-apps/core/scripts/sync-client-b-fca-template.mjs
-apps/core/scripts/trace-mask-icon.mjs
-apps/core/scripts/create-fca-review-link.mjs
-apps/core/test/privateDomainDefaults.test.js
-apps/core/test/fcaReviewReports.test.mjs
-apps/core/test/fcaReviewToken.test.js
-apps/core/test/healthRoute.test.js
-apps/core/test/publicApiRoutes.test.js
 
 # Local compose environment files (the example is tracked)
 deploy/docker/env/*.env

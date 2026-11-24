@@ -12,7 +12,7 @@ const guardSources = ['check-private-files.mjs', 'private-overlay-paths.mjs'].ma
 )
 
 /** A throwaway git project holding a copy of the guard, an ignore list and an overlay tree. */
-function createProject({ ignore = [], overlayFiles = [] } = {}) {
+function createProject({ ignore = [], exclude = [], overlayFiles = [] } = {}) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'private-guard-'))
     fs.mkdirSync(path.join(root, 'scripts'), { recursive: true })
     for (const source of guardSources) {
@@ -27,6 +27,9 @@ function createProject({ ignore = [], overlayFiles = [] } = {}) {
     }
 
     spawnSync('git', ['init', '-q'], { cwd: root })
+    if (exclude.length > 0) {
+        fs.writeFileSync(path.join(root, '.git/info/exclude'), `${exclude.join('\n')}\n`)
+    }
     return root
 }
 
@@ -41,6 +44,17 @@ function runGuard(root, args = []) {
 test('passes when the ignore list covers every path the overlay writes', () => {
     const root = createProject({
         ignore: ['public/acme/'],
+        overlayFiles: ['public/acme/logo.png'],
+    })
+
+    const guard = runGuard(root)
+
+    assert.equal(guard.status, 0, guard.stderr)
+})
+
+test('reads overlay coverage from the checkout-local exclude file', () => {
+    const root = createProject({
+        exclude: ['public/acme/'],
         overlayFiles: ['public/acme/logo.png'],
     })
 

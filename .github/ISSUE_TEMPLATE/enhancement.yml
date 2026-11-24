@@ -1,0 +1,71 @@
+name: Enhancement
+description: Improve existing functionality
+title: '[Enhancement]: '
+labels: ['type: enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. Do not include patient-identifying or otherwise
+        confidential data.
+
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behaviour
+      description: How does the existing functionality behave today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Proposed improvement
+      description: What should change, and how should it behave? Describe the behaviour, not the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: benefit
+    attributes:
+      label: Why this helps
+      description: Who benefits, and what does it let them do that they cannot do now?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How soon is this needed? Triagers may adjust it.
+      options:
+        - 'priority: high'
+        - 'priority: medium'
+        - 'priority: low'
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the codebase would this touch?
+      options:
+        - 'area: core'
+        - 'area: runtime'
+        - 'area: database'
+        - 'area: infrastructure'
+      default: 0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This report contains no patient-identifying or confidential data.
+          required: true

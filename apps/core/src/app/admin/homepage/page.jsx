@@ -22,7 +22,7 @@ import {
 } from '@/lib/siteTitle'
 import { getEffectiveAdminDomainModeFromStorage } from '@/lib/adminActiveDomain'
 import { DEFAULT_CONTENT_DOMAIN, DEFAULT_DOMAIN_MODE, getDomainLabel } from '@/lib/domainMode'
-import { getHomepageHeroSettingsEndpoint, getPrivateHomepageDefaultPalettes, getPrivateHomepageScopes } from '@/lib/domainExtension'
+import { getHomepageHeroSettingsEndpoint, getPrivateDomainHeroAvatar, getPrivateHomepageDefaultPalettes, getPrivateHomepageScopes } from '@/lib/domainExtension'
 
 const DEFAULT_LATEST_POSTS_ORDER_MODE = 'newest'
 // Domain the homepage editor opens on when the admin session resolves to the
@@ -608,6 +608,7 @@ export default function PracticeHomePage() {
         [activeHomeScope]
     )
     const isPrivateHomepageScope = getPrivateHomepageScopes().includes(activeHomeScope)
+    const heroAvatarOverride = getPrivateDomainHeroAvatar(activeHomeScope)
     const isContentTab = activeTab === 'content'
     const isDesignerTab = activeTab === 'designer'
     const heroBannerSettingsEndpoint = useMemo(
@@ -1906,7 +1907,7 @@ export default function PracticeHomePage() {
         const heroEyebrow = String(heroSection?.label || '').trim() || 'Featured post'
         const heroHeading = String(heroSection?.heading || '').trim() || 'Feature your strongest story right at the top of the homepage.'
         const heroSubheading = String(heroSection?.subheading || '').trim()
-        const heroLogoImage = normalizePublicAssetUrl(heroSection?.logoImage)
+        const heroLogoImage = normalizePublicAssetUrl(heroAvatarOverride || heroSection?.logoImage)
         const bannerImageUrl = String(heroBannerUrl || '').trim()
         const canRenderBannerImage = bannerImageUrl && (!screenshotMode || isLocalOrDataAsset(bannerImageUrl))
         const canRenderLogoImage = Boolean(heroLogoImage)
@@ -3515,17 +3516,24 @@ export default function PracticeHomePage() {
                                             </div>
                                             <div>
                                                 <label className="text-xs font-medium text-gray-600">Logo image URL</label>
-                                                <input
-                                                    type="text"
-                                                    value={heroSection?.logoImage || ''}
-                                                    onChange={(event) => {
-                                                        setHeroWorkspaceDirty(true)
-                                                        handleTemplateSectionTextChange('hero', 'logoImage', event.target.value)
-                                                    }}
-                                                    onBlur={saveHeroWorkspaceIfDirty}
-                                                    placeholder="/logo.png (files in public/ use /filename.png)"
-                                                    className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900"
-                                                />
+                                                {heroAvatarOverride ? (
+                                                    <div className="mt-1 rounded border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                                                        <code className="text-xs">{heroAvatarOverride}</code>
+                                                        <p className="mt-1 text-xs text-gray-500">Bundled with this domain&apos;s code, so the hero portrait is not stored in the database.</p>
+                                                    </div>
+                                                ) : (
+                                                    <input
+                                                        type="text"
+                                                        value={heroSection?.logoImage || ''}
+                                                        onChange={(event) => {
+                                                            setHeroWorkspaceDirty(true)
+                                                            handleTemplateSectionTextChange('hero', 'logoImage', event.target.value)
+                                                        }}
+                                                        onBlur={saveHeroWorkspaceIfDirty}
+                                                        placeholder="/logo.png (files in public/ use /filename.png)"
+                                                        className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                                                    />
+                                                )}
                                             </div>
                                             <label className="inline-flex items-center gap-2 text-sm text-gray-700">
                                                 <input

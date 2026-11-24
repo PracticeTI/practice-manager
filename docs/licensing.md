@@ -22,7 +22,9 @@ each differently. Two distinctions do the work: **tracked by git or not**, and *
 
 Customer-specific material is not part of the public tree at all. It lives in the private
 overlay, is copied into place by [`scripts/sync-private-overlay.mjs`](../apps/core/scripts/sync-private-overlay.mjs),
-and is excluded by [`.gitignore`](../.gitignore) under its private-overlay heading:
+and is excluded by the checkout's ignore rules: the submodule mount and generated bridges by
+[`.gitignore`](../.gitignore), the copied destinations by the local `.git/info/exclude` the sync
+maintains (so the public `.gitignore` names no private domain):
 
 | Path | Content |
 |------|---------|
