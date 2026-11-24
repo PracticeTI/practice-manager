@@ -37,7 +37,13 @@ const config = {
       '@semantic-release/git',
       {
         assets: ['CHANGELOG.md', 'package.json', 'package-lock.json', 'apps/core/package.json'],
-        message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}',
+        // Deliberately no `[skip ci]`: GitHub treats that keyword on a pull request's head commit
+        // as "skip every workflow in this run set", including `opened`, `reopened` and
+        // `synchronize`. This commit is the tip of `preview`, so it is the head of the
+        // preview -> main release pull request, and the keyword would leave `Lint` and
+        // `Private overlay` pending forever, blocking the merge. `release.yml` skips the release
+        // job for this commit instead.
+        message: 'chore(release): ${nextRelease.version}\n\n${nextRelease.notes}',
       },
     ],
     '@semantic-release/github',
