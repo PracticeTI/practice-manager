@@ -54,6 +54,12 @@ jobs:
   release:
     name: Release
     needs: lint
+    # The version commit pushes itself back to `preview`, and when `RELEASE_TOKEN` is a PAT that
+    # push starts this workflow again. Nothing is release-worthy in it, so skip the job rather
+    # than spend a run proving that. The guard cannot be `[skip ci]` in the commit message: that
+    # keyword also suppresses every workflow for the preview -> main pull request, whose head is
+    # this commit, and the required `Lint` / `Private overlay` checks would never report.
+    if: github.event_name != 'push' || github.event.head_commit.author.name != 'semantic-release-bot'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
