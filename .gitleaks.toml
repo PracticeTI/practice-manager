@@ -1,0 +1,28 @@
+# Credential scan. CI runs this over the commits a pull request adds; run it locally with
+#
+#   gitleaks git . --config .gitleaks.toml --redact --log-opts="origin/preview..HEAD"
+#
+# Private domain names are deliberately not listed here: this file is published, so they stay in
+# the local pre-push guard (apps/core/scripts/check-private-files.mjs).
+
+[extend]
+useDefault = true
+# Default rules that flag ordinary identifiers in this codebase: `generic-api-key` matches the
+# funder registry's document keys, and both LinkedIn rules match the `linkedinUsername` field on
+# the homepage settings page. The Supabase rule below covers the assignments those would catch.
+disabledRules = ['generic-api-key', 'linkedin-client-id', 'linkedin-client-secret']
+
+[allowlist]
+description = 'Public by design'
+paths = [
+  # dotenvx ciphertext is high entropy by design; branch secrets decrypt it at deploy time.
+  '''(^|/)supabase/\.env\.(preview|production)$''',
+]
+
+[[rules]]
+id = 'supabase-inline-secret'
+description = 'Credential assigned inline in a Supabase config, seed or migration'
+# `env(VAR)` references, `encrypted:` values and `?sslmode=` URLs contain characters outside the
+# value class, so only a literal credential matches.
+regex = '''(?i)\b(password|passwd|pass|secret|token|api[_-]?key|[\w.-]*_key)\b\s*[:=]\s*['"]([A-Za-z0-9_\-./+=]{12,})['"]'''
+path = '''(?i)(^|/)supabase/.*\.(toml|jsonc|env|sql|ya?ml)$'''
