@@ -147,6 +147,10 @@ Sequencing notes:
 - **The identity model starts in `apps/core`.** [`identitySchema.js`](../../apps/core/src/lib/identitySchema.js)
   is the interim home and is applied by both `db:init` and `db:prepare`. Moving it to
   `packages/identity` and `packages/db/migrations` is a follow-up, not a prerequisite for #3.
+- **Identity tables are created with RLS on and no policy.** They hold addresses and password
+  hashes, and nothing reads them yet, so the model fails closed. The issue that adds the first
+  reader adds the policy and the grant together (#4 or #8), rather than inheriting a table where
+  RLS was silently off.
 
 ## Open questions
 

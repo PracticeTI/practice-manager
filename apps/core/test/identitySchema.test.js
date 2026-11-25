@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import {
     IDENTITY_INDEX_STATEMENTS,
+    IDENTITY_RLS_STATEMENTS,
     IDENTITY_TABLE_STATEMENTS,
     IDENTITY_TABLES,
 } from '../src/lib/identitySchema.js'
@@ -53,4 +54,19 @@ test('federated identities are unique on the provider subject', () => {
 
     assert.match(sql, /UNIQUE \(provider, provider_account_id\)/)
     assert.doesNotMatch(sql, /email/i, 'a provider identity never links on email')
+})
+
+test('every table enables RLS without a policy until a reader arrives', () => {
+    assert.equal(IDENTITY_RLS_STATEMENTS.length, IDENTITY_TABLES.length)
+
+    for (const table of IDENTITY_TABLES) {
+        assert.ok(
+            IDENTITY_RLS_STATEMENTS.includes(`ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`),
+            `${table} fails closed`
+        )
+    }
+
+    // The model is deliberately absent from the policy set: it is not tenant-scoped
+    // and has no reader yet.
+    assert.ok(!IDENTITY_RLS_STATEMENTS.some((sql) => sql.includes('CREATE POLICY')))
 })

@@ -77,6 +77,22 @@ export const IDENTITY_TABLE_STATEMENTS = [
     )`,
 ]
 
+/**
+ * Enable row-level security on every identity table, with no policy yet.
+ *
+ * This is deliberate and has to be explicit. A table created through
+ * `getDatabaseConnection()` gets RLS enabled by the auto-RLS wrapper, while the
+ * owner pass in `npm run db:prepare` uses a plain client and would leave it off —
+ * so the two documented install paths produced different schemas.
+ *
+ * Fail closed: the model holds addresses and password hashes, and nothing reads it
+ * yet. The issue that adds the first reader adds its policy and grant together, and
+ * cannot ship without them, instead of inheriting a table with RLS silently off.
+ */
+export const IDENTITY_RLS_STATEMENTS = IDENTITY_TABLES.map(
+    (table) => `ALTER TABLE public.${table} ENABLE ROW LEVEL SECURITY`
+)
+
 export const IDENTITY_INDEX_STATEMENTS = [
     // Deliberately no `removed_at IS NULL` in the predicate: a retired address must
     // keep occupying its slot, otherwise a reassigned mailbox could claim an account
