@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url'
 import { Client as PgClient } from 'pg'
 import { isLocalPostgresConnectionString } from '../src/lib/supabaseRls.js'
 import { SETTINGS_TABLE_STATEMENTS } from '../src/lib/settingsTables.js'
+import { IDENTITY_INDEX_STATEMENTS, IDENTITY_TABLE_STATEMENTS } from '../src/lib/identitySchema.js'
 import {
     DIRECTORY_CHILD_TABLES,
     RLS_POLICY_TABLES,
@@ -255,6 +256,14 @@ async function main() {
         await client.query('BEGIN')
         let inTransaction = new Map()
         try {
+            // The identity model is additive and has no policies or grants yet, so it
+            // is not part of the RLS set. Create it in the owner pass anyway, inside
+            // the transaction so a dry run changes nothing: nothing in the runtime
+            // may need the owner credential to add it later.
+            for (const statement of [...IDENTITY_TABLE_STATEMENTS, ...IDENTITY_INDEX_STATEMENTS]) {
+                await client.query(statement)
+            }
+
             for (const statement of policyStatements) {
                 await client.query(statement)
             }

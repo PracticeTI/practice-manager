@@ -32,6 +32,7 @@ import { ensureBillingTable } from '@/lib/billingTable'
 import { ensureChatsTable } from '@/lib/chats'
 import { ensureSchedulingTables } from '@/lib/schedulingTables'
 import { ensureSettingsTables } from '@/lib/appSettings'
+import { ensureIdentityTables } from '@/lib/identityTables'
 import { ensureRateLimitTable } from '@/lib/rateLimits'
 import { ensureTaskEntriesTable } from '@/lib/taskEntries'
 import { ensureAdminSuppressedNotificationsTable } from '@/lib/adminNotifications'
@@ -81,6 +82,9 @@ export const SCHEMA_STEPS = [
     { name: 'chats', run: ({ connection, dbType }) => ensureChatsTable(connection, dbType) },
     { name: 'scheduling', run: () => ensureSchedulingTables() },
     { name: 'settings', run: () => ensureSettingsTables() },
+    // Additive identity model; nothing reads it yet, so it has no dependants and
+    // only needs a connection.
+    { name: 'identity', run: ({ connection }) => ensureIdentityTables(connection) },
     {
         name: 'core-content',
         run: async ({ connection }) => {

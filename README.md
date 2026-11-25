@@ -163,7 +163,7 @@ npm run setup --workspace @practice-manager/desktop              # create the da
 ```
 
 `setup` creates the database when it is missing and then runs the core app's
-`db:init` (31 idempotent schema steps), so `preflight` afterwards passes end to end.
+`db:init` (32 idempotent schema steps), so `preflight` afterwards passes end to end.
 
 The Electron shell (`npm start --workspace @practice-manager/desktop`) runs the same
 preflight before it opens a window: an unsupported Node, an unreachable database or an
