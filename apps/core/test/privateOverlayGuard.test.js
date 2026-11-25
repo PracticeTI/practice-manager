@@ -19,6 +19,7 @@ function createProject({ ignore = [], exclude = [], overlayFiles = [] } = {}) {
         fs.copyFileSync(source, path.join(root, 'scripts', path.basename(source)))
     }
     fs.writeFileSync(path.join(root, '.gitignore'), `${ignore.join('\n')}\n`)
+    fs.writeFileSync(path.join(root, 'package.json'), '{"type":"module"}\n')
 
     for (const relativePath of overlayFiles) {
         const absolute = path.join(root, 'src/private/overlay', relativePath)
@@ -86,4 +87,61 @@ test('fails on a tracked file the ignore list excludes', () => {
 
     assert.equal(guard.status, 1)
     assert.match(guard.stderr, /public\/acme\/logo\.png is tracked but ignored/)
+})
+
+const PRIVATE_REGISTRY = `
+export const PRIVATE_DOMAINS = [
+    { key: 'acme', label: 'Acme OT', hostnames: ['acme.example', 'acme'], hostLabels: ['acme'] },
+]
+`
+
+/** A project whose overlay registry knows one private domain and whose supabase/ holds `seedSql`. */
+function createSupabaseProject(seedSql) {
+    const root = createProject()
+    fs.mkdirSync(path.join(root, 'src/lib'), { recursive: true })
+    fs.writeFileSync(path.join(root, 'src/lib/privateDomains.js'), PRIVATE_REGISTRY)
+    fs.mkdirSync(path.join(root, 'supabase/migrations'), { recursive: true })
+    fs.writeFileSync(path.join(root, 'supabase/seed.sql'), seedSql)
+    spawnSync('git', ['add', '-A'], { cwd: root })
+    return root
+}
+
+test('fails when a supabase file names a private domain', () => {
+    const root = createSupabaseProject("insert into domains (host) values ('acme.example');\n")
+
+    const guard = runGuard(root)
+
+    assert.equal(guard.status, 1)
+    assert.match(guard.stderr, /supabase\/seed\.sql names private domains .*"acme\.example"/)
+})
+
+test('passes when supabase files use synthetic values', () => {
+    const root = createSupabaseProject("insert into domains (host) values ('example.test');\n")
+
+    const guard = runGuard(root)
+
+    assert.equal(guard.status, 0, guard.stderr)
+})
+
+test('does not flag a private name inside a longer word', () => {
+    const root = createSupabaseProject("-- acmezine is a longer word\ninsert into domains (host) values ('example.test');\n")
+
+    const guard = runGuard(root)
+
+    assert.equal(guard.status, 0, guard.stderr)
+})
+
+test('finds a supabase project in a nested working directory', () => {
+    const root = createProject()
+    fs.mkdirSync(path.join(root, 'src/lib'), { recursive: true })
+    fs.writeFileSync(path.join(root, 'src/lib/privateDomains.js'), PRIVATE_REGISTRY)
+    fs.mkdirSync(path.join(root, 'packages/db/supabase'), { recursive: true })
+    fs.writeFileSync(path.join(root, 'packages/db/supabase/config.toml'), 'project_id = "practice-manager"\n')
+    fs.writeFileSync(path.join(root, 'packages/db/supabase/seed.sql'), "insert into domains (host) values ('acme.example');\n")
+    spawnSync('git', ['add', '-A'], { cwd: root })
+
+    const guard = runGuard(root)
+
+    assert.equal(guard.status, 1)
+    assert.match(guard.stderr, /packages\/db\/supabase\/seed\.sql names private domains/)
 })

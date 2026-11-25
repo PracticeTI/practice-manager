@@ -12,6 +12,7 @@
     "packages/*"
   ],
   "scripts": {
+    "prepare": "node scripts/install-git-hooks.mjs",
     "dev": "npm run dev --workspace @practice-manager/core",
     "build": "npm run build --workspace @practice-manager/core",
     "start": "npm run start --workspace @practice-manager/core",
