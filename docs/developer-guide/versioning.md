@@ -27,7 +27,7 @@ back-merge are harmless.
 
 | Branch | Role |
 | --- | --- |
-| `preview` | Integration and sign-off. Feature pull requests land here; the Preview deployment is the pre-production gate. Merging into it publishes nothing. |
+| `preview` | Integration and sign-off. Feature pull requests land here; the Preview deployment is the pre-production gate. A push to it runs the `Lint` and private-overlay gates but publishes nothing. |
 | `main` | Production. Promoting `preview` into `main` is the release event: the merge publishes the version, tag and GitHub Release for exactly the code the production deployment will run. |
 
 Releases were cut on `preview` until [#35](https://github.com/PracticeTI/practice-manager/issues/35).
@@ -47,7 +47,9 @@ Merging a release-worthy commit into `main` triggers
 **`Lint`** runs `npm run lint` (`eslint .`). It exits non-zero on any lint *error*, and the
 `Release` job is gated on it with `needs: lint`, so a lint regression fails the workflow instead of
 shipping inside a published release. Lint warnings do not fail the build. The same check also runs
-on pull requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml).
+on pull requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml), and on every push
+to `preview` — together with the private-overlay guard, since `preview` is unprotected and a direct
+push there would otherwise never be scanned.
 
 **`Release`** runs `semantic-release`, which:
 
@@ -123,12 +125,16 @@ without creating a tag, commit, or release.
 
 ## Troubleshooting
 
-**The workflow fails with `RELEASE_TOKEN is not set`.** `main` is protected, and a branch protection
-rule constrains pushes as well as merges, so the version commit has to be pushed by an actor that
-bypasses the rule — the workflow's own `GITHUB_TOKEN` is not one while `enforce_admins` is `false`.
-Create the `RELEASE_TOKEN` repository secret as a fine-grained PAT belonging to a repository admin,
-or a GitHub App installation token for an app on a ruleset's bypass list, with `contents: write`. The
-workflow prefers it over `GITHUB_TOKEN` and fails on the missing secret before writing anything.
+**The workflow fails with `RELEASE_TOKEN is not set`.** `main` requires a bypass actor: the branch
+protection rule constrains pushes as well as merges, and the Actions bot is never one. Create the
+`RELEASE_TOKEN` repository secret from a token belonging to an actor that bypasses the rule — a
+fine-grained PAT for a repository admin (this repository runs with `enforce_admins` disabled, so
+admins bypass), or a GitHub App installation token for an app on a ruleset's bypass list. The token
+needs `contents: write` to push the version commit and tag, and also `issues: write` and
+`pull-requests: write` for the post-release comments and labels: the `Release` job's `permissions:`
+block only governs `GITHUB_TOKEN`, which a non-dry-run release does not use, so any scope the token
+lacks is lost silently (`@semantic-release/github` logs the `403` and carries on). The workflow
+prefers `RELEASE_TOKEN` over `GITHUB_TOKEN` and fails on the missing secret before writing anything.
 
 **No release is created.** That is expected when the new commits are all non-release types
 (`docs:`, `chore:`, `refactor:` …), when the same commits were already released on `preview` before

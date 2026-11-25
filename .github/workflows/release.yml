@@ -3,11 +3,13 @@ name: Release
 # A push to the production branch cuts a release: semantic-release derives the version from the
 # Conventional Commits since the last tag, then updates the manifests, CHANGELOG.md and tag.
 # `preview` no longer releases: promoting it into `main` is what publishes a version, so a release
-# always describes what production runs. The manual dispatch exists to preview a release without
-# publishing one.
+# always describes what production runs. A push to `preview` still runs the `Lint` job below —
+# `preview` is unprotected, so a direct push there needs the same lint and private-overlay gates a
+# pull request gets — but only `main` runs the `release` job. The manual dispatch exists to preview
+# a release without publishing one.
 on:
   push:
-    branches: [main]
+    branches: [main, preview]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -47,15 +49,18 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # A push straight to `main` skips the pull-request workflow, so the private overlay guard
-      # runs here too: a customer asset committed by mistake blocks the release instead of
-      # publishing it.
+      # A push straight to `preview` or `main` skips the pull-request workflow, so the private
+      # overlay guard runs here too: a customer asset committed by mistake fails the run, so it is
+      # never promoted into a release.
       - name: No private overlay files
         run: node apps/core/scripts/check-private-files.mjs
 
   release:
     name: Release
     needs: lint
+    # A push to `preview` only runs the gates above: promoting `preview` into `main` is the release
+    # event, so the version is tagged once the promoted commit is what production runs.
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -126,11 +131,24 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git fetch origin main
-          if git merge-base --is-ancestor origin/main HEAD; then
-            echo 'preview already contains main'
-            exit 0
-          fi
-          # A conflict fails the job with nothing pushed, so `preview` is never left half-merged.
-          git merge --no-ff -m 'chore: merge main into preview' origin/main
-          git push origin HEAD:preview
+          # `preview` also takes pushes by hand, so the push below can lose a race with a commit
+          # that landed after this checkout. Re-fetch and reconcile with the new tip instead of
+          # failing: a red run here leaves `preview` without the version commit, and the next
+          # promotion conflicts on `package.json` — the situation this job exists to prevent.
+          for attempt in 1 2 3; do
+            git fetch origin main preview
+            if git merge-base --is-ancestor origin/main HEAD; then
+              echo 'preview already contains main'
+              exit 0
+            fi
+            # A conflict is not retryable: it fails here with nothing pushed, so `preview` is
+            # never left half-merged.
+            git merge --no-ff -m 'chore: merge main into preview' origin/main
+            if git push origin HEAD:preview; then
+              exit 0
+            fi
+            echo "::warning::push to preview was rejected on attempt ${attempt}, retrying from its tip"
+            git reset --hard origin/preview
+          done
+          echo '::error::could not back-merge main into preview after 3 attempts'
+          exit 1

@@ -101,7 +101,7 @@ Two guards enforce that, both running [`scripts/check-private-files.mjs`](../scr
 | Guard | Where | Catches |
 |-------|-------|---------|
 | Pre-push hook | `.githooks/pre-push`, installed by `npm install` (`prepare` sets `core.hooksPath`) | A pushed commit that adds a path the last mount produced (read from `.private-overlay.json`), and an overlay destination the ignore rules do not cover (read from `src/private/overlay`, or the last mount's manifest) |
-| `Private overlay` job in [ci.yml](../../../.github/workflows/ci.yml), plus a step in the `Lint` job of [release.yml](../../../.github/workflows/release.yml) | CI, on every pull request and every push to `main` | Any tracked file the ignore rules exclude — i.e. an overlay copy that was committed |
+| `Private overlay` job in [ci.yml](../../../.github/workflows/ci.yml), plus a step in the `Lint` job of [release.yml](../../../.github/workflows/release.yml) | CI, on every pull request and every push to `preview` or `main` | Any tracked file the ignore rules exclude — i.e. an overlay copy that was committed |
 
 CI has no private submodule, so it sees only the ignore rules; the hook additionally knows the
 exact paths the overlay produced and the folders it is about to produce. Adding a domain folder
