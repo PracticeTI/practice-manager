@@ -1,11 +1,13 @@
 name: Release
 
-# A push to the integration branch cuts a release: semantic-release derives the version from the
+# A push to the production branch cuts a release: semantic-release derives the version from the
 # Conventional Commits since the last tag, then updates the manifests, CHANGELOG.md and tag.
-# The manual dispatch exists to preview a release without publishing one.
+# `preview` no longer releases: promoting it into `main` is what publishes a version, so a release
+# always describes what production runs. The manual dispatch exists to preview a release without
+# publishing one.
 on:
   push:
-    branches: [preview]
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -45,7 +47,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # A push straight to preview skips the pull-request workflow, so the private overlay guard
+      # A push straight to `main` skips the pull-request workflow, so the private overlay guard
       # runs here too: a customer asset committed by mistake blocks the release instead of
       # publishing it.
       - name: No private overlay files
@@ -54,12 +56,6 @@ jobs:
   release:
     name: Release
     needs: lint
-    # The version commit pushes itself back to `preview`, and when `RELEASE_TOKEN` is a PAT that
-    # push starts this workflow again. Nothing is release-worthy in it, so skip the job rather
-    # than spend a run proving that. The guard cannot be `[skip ci]` in the commit message: that
-    # keyword also suppresses every workflow for the preview -> main pull request, whose head is
-    # this commit, and the required `Lint` / `Private overlay` checks would never report.
-    if: github.event_name != 'push' || github.event.head_commit.author.name != 'semantic-release-bot'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -67,6 +63,21 @@ jobs:
       issues: write # comment on issues resolved by the release
       pull-requests: write # comment on pull requests included in the release
     steps:
+      # `main` requires status checks, and a branch protection rule constrains pushes as well as
+      # merges, so the version commit must be pushed by an actor that bypasses the rule. The
+      # workflow's own token is not one. Check before semantic-release writes the tag and
+      # manifests, so a missing token fails here instead of on a rejected push. Remove this step
+      # if the GitHub Actions app is added to a ruleset's bypass list instead.
+      - name: Check the release token
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::error::RELEASE_TOKEN is not set. main is protected, so the version commit has to be pushed by an admin PAT or a GitHub App on a bypass list; the workflow's GITHUB_TOKEN cannot."
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -85,7 +96,41 @@ jobs:
 
       - name: Release
         env:
-          # Provide a RELEASE_TOKEN secret (PAT or GitHub App token) when preview is protected
-          # and the workflow's own token cannot bypass that protection.
+          # A fine-grained PAT (or GitHub App installation token) belonging to an actor that can
+          # bypass `main`'s protection. See docs/developer-guide/versioning.md.
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: npx semantic-release ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+
+  # The release job is the only thing that writes to `main` alone, so merging it back is what keeps
+  # `preview` carrying the version and CHANGELOG the release just wrote — otherwise the next
+  # promotion conflicts on `package.json` and the footer keeps reporting the old version.
+  sync-preview:
+    name: Merge main into preview
+    needs: release
+    if: needs.release.result == 'success' && github.event.inputs.dry_run != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: preview
+          fetch-depth: 0
+          # `preview` is not protected today, but pushing with the same token keeps the back-merge
+          # working if it ever is.
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Merge
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo 'preview already contains main'
+            exit 0
+          fi
+          # A conflict fails the job with nothing pushed, so `preview` is never left half-merged.
+          git merge --no-ff -m 'chore: merge main into preview' origin/main
+          git push origin HEAD:preview

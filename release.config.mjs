@@ -5,14 +5,17 @@
  * commit messages are the source of truth: `fix:` -> patch, `feat:` -> minor, and a `!` or
  * `BREAKING CHANGE:` footer -> major. See docs/developer-guide/versioning.md.
  *
+ * Releases are cut from `main`, the production branch. A promoted commit is therefore tagged only
+ * once it is what production runs, and a revert before promotion cannot leave a published release
+ * behind. Cutting them on `preview` published a stable version ahead of the sign-off gate.
+ *
  * The repository has a single version across all workspaces, so the release commits touch the
  * root manifests plus the app manifest that `next.config.js` reads its version from.
  *
  * @type {import('semantic-release').GlobalConfig}
  */
 const config = {
-  // Releases are cut from the integration branch, not `main`.
-  branches: ['preview'],
+  branches: ['main'],
   plugins: [
     ['@semantic-release/commit-analyzer', { preset: 'conventionalcommits' }],
     // The `conventionalcommits` preset is pinned to 9.x on purpose: 10.x rejects the
@@ -37,12 +40,9 @@ const config = {
       '@semantic-release/git',
       {
         assets: ['CHANGELOG.md', 'package.json', 'package-lock.json', 'apps/core/package.json'],
-        // Deliberately no `[skip ci]`: GitHub treats that keyword on a pull request's head commit
-        // as "skip every workflow in this run set", including `opened`, `reopened` and
-        // `synchronize`. This commit is the tip of `preview`, so it is the head of the
-        // preview -> main release pull request, and the keyword would leave `Lint` and
-        // `Private overlay` pending forever, blocking the merge. `release.yml` skips the release
-        // job for this commit instead.
+        // No `[skip ci]` anywhere in this message: GitHub applies that keyword to every workflow
+        // for a pull request whose head commit carries it, so it would silence the checks on a
+        // promotion request. A second run triggered by a PAT push of this commit is a no-op.
         message: 'chore(release): ${nextRelease.version}\n\n${nextRelease.notes}',
       },
     ],
