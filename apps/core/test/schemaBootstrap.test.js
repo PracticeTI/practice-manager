@@ -20,7 +20,7 @@ test('lists the schema steps in a stable, unique order', () => {
         assert.equal(typeof step.run, 'function', `${step.name} has a run function`)
     }
 
-    for (const required of ['patients', 'appointments', 'notes', 'queue-report', 'queue-email']) {
+    for (const required of ['patients', 'appointments', 'notes', 'identity', 'queue-report', 'queue-email']) {
         assert.ok(names.includes(required), `${required} is part of the bootstrap`)
     }
 })
