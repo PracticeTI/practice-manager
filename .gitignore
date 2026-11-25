@@ -11,6 +11,16 @@ out/
 .env.*.local
 !.env.example
 
+# dotenvx decryption keys: only the encrypted .env.preview/.env.production files are committed
+.env.keys
+
+# Supabase CLI local state. `supabase init` writes the same rules to supabase/.gitignore, which
+# only covers a directory at the root; these cover a nested one (for example packages/db/supabase).
+**/supabase/.temp/
+**/supabase/.branches/
+**/supabase/signing_keys.json
+**/supabase/**/*.pem
+
 # Logs and OS files
 *.log
 .DS_Store

@@ -14,6 +14,15 @@ the commands to build, test and run the app are in the
 - Ensure you have the right to contribute the code and content you submit, and
   identify dependencies with licenses that may be incompatible with AGPL-3.0.
 
+## Repository hooks
+
+`npm install` points this checkout at the tracked hooks in `.githooks`, unless
+`core.hooksPath` is already set. The `pre-push` hook refuses to push private
+overlay files or private domain names, including from a `supabase/` directory —
+Supabase branching publishes that directory as config-as-code and replays it on
+every preview branch. Run the same check by hand with
+`npm run private:guard --workspace @practice-manager/core`.
+
 ## Developer Certificate of Origin
 
 Contributions are accepted under the Developer Certificate of Origin 1.1.

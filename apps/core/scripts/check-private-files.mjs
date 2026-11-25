@@ -14,9 +14,13 @@
  *   3. Every path the overlay would write must be excluded by the ignore rules, so a newly
  *      added private folder cannot silently escape the list. Uses the mounted overlay tree
  *      when it is on disk, and the last mount's manifest otherwise.
+ *   4. No tracked file inside a `supabase/` directory may name a private domain. Branching
+ *      reads that directory from the public repository and replays it on every preview branch,
+ *      so a customer name committed there is published twice.
  *
- * All three run from the pre-push hook (`.githooks/pre-push`). CI runs invariant 1: it has no
- * private submodule, so the manifest and the overlay tree are not there to compare.
+ * Invariants 1-3 and 4 run from the pre-push hook (`.githooks/pre-push`). CI runs invariant 1:
+ * it has no private submodule, so the manifest, the overlay tree and the domain registry are not
+ * there to compare, and invariant 4 has no terms to look for.
  *
  * Usage:
  *   node scripts/check-private-files.mjs                    # check the index and the ignore list
@@ -26,7 +30,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { listOverlayDestinations } from './private-overlay-paths.mjs'
 
@@ -38,13 +42,17 @@ const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 const problems = []
 
-function git(args, { allowFailure = false } = {}) {
+function gitAt(cwd, args, { allowFailure = false } = {}) {
   try {
-    return execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
   } catch (error) {
     if (allowFailure) return null
     throw error
   }
+}
+
+function git(args, options) {
+  return gitAt(repoRoot, args, options)
 }
 
 function report(problem) {
@@ -152,6 +160,114 @@ function checkIgnoreCoverage(overlayPaths) {
   }
 }
 
+/** Domain terms the private overlay keeps out of the public tree; empty when it is not mounted. */
+async function readPrivateDomainTerms() {
+  const registryPath = path.join(repoRoot, 'src/lib/privateDomains.js')
+  if (!fs.existsSync(registryPath)) return []
+
+  let registry
+  try {
+    registry = await import(pathToFileURL(registryPath).href)
+  } catch {
+    // The generated module and its data file are removed together; a half-cleaned tree has no terms.
+    return []
+  }
+
+  const terms = new Set()
+  for (const domain of Array.isArray(registry.PRIVATE_DOMAINS) ? registry.PRIVATE_DOMAINS : []) {
+    // The customer's own name and host labels identify them just as well as a full hostname.
+    const values = [domain?.key, domain?.label, ...(domain?.hostnames ?? []), ...(domain?.hostLabels ?? [])]
+    for (const value of values) {
+      if (typeof value !== 'string') continue
+      const term = value.trim()
+      if (term.length >= 4) terms.add(term)
+    }
+  }
+
+  return [...terms]
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** Terms that appear as a whole word, so `novi` does not match `novitas`. */
+function privateTermsIn(text, terms) {
+  return terms.filter((term) => new RegExp(`(?<![a-z0-9-])${escapeRegExp(term)}(?![a-z0-9-])`, 'i').test(text))
+}
+
+/** The largest Supabase file worth scanning; a migration or seed is far smaller. */
+const TEXT_FILE_LIMIT = 512 * 1024
+
+function readTrackedText(absolutePath) {
+  try {
+    const stat = fs.statSync(absolutePath)
+    if (!stat.isFile() || stat.size > TEXT_FILE_LIMIT) return null
+    const buffer = fs.readFileSync(absolutePath)
+    return buffer.includes(0) ? null : buffer.toString('utf8')
+  } catch {
+    return null
+  }
+}
+
+/** Files the Supabase CLI publishes from a `supabase/` directory, wherever it sits. */
+function isInSupabaseDirectory(relativePath) {
+  return relativePath.startsWith('supabase/') || relativePath.includes('/supabase/')
+}
+
+/**
+ * Tracked files belonging to a Supabase project. Prefers directories that carry a config file,
+ * so a documentation folder that happens to be called `supabase` is not scanned; a migrations-only
+ * directory (no config yet) still is.
+ */
+function supabaseProjectFiles(relativePaths) {
+  const roots = new Set()
+  for (const relativePath of relativePaths) {
+    const match = relativePath.match(/^(?:(.*)\/)?supabase\/config\.(?:toml|jsonc)$/)
+    if (!match) continue
+    roots.add(match[1] ? `${match[1]}/supabase/` : 'supabase/')
+  }
+
+  if (roots.size === 0) return relativePaths.filter(isInSupabaseDirectory)
+  return relativePaths.filter((relativePath) => [...roots].some((root) => relativePath.startsWith(root)))
+}
+
+/** Invariant 4: Supabase config, migrations and seeds must not name a private domain. */
+async function checkSupabaseContent() {
+  const gitRoot = git(['rev-parse', '--show-toplevel'], { allowFailure: true })?.trim()
+  if (!gitRoot) return
+
+  const tracked = gitAt(gitRoot, ['ls-files', '-z'], { allowFailure: true })
+  if (tracked === null) return
+
+  const files = supabaseProjectFiles(tracked.split('\0').filter(Boolean))
+  if (files.length === 0) return
+
+  const terms = await readPrivateDomainTerms()
+  if (terms.length === 0) return
+
+  for (const relativePath of files) {
+    const text = readTrackedText(path.join(gitRoot, relativePath))
+    if (text === null) continue
+
+    const matches = []
+    const seen = new Set()
+    for (const term of privateTermsIn(text, terms)) {
+      // `key`, `label` and hostnames repeat the same brand; one mention per name is enough.
+      if (seen.has(term.toLowerCase())) continue
+      seen.add(term.toLowerCase())
+      matches.push(term)
+    }
+    if (matches.length === 0) continue
+
+    report(
+      `${relativePath} names ${matches.length === 1 ? 'the private domain' : 'private domains'} ` +
+        `${matches.map((term) => `"${term}"`).join(', ')} and would be published.\n` +
+        '  fix: keep customer names out of supabase/ - seeds and migrations need synthetic values'
+    )
+  }
+}
+
 const ranges = []
 for (let index = 2; index < process.argv.length; index += 1) {
   if (process.argv[index] === '--range' && process.argv[index + 1]) {
@@ -166,10 +282,11 @@ checkTrackedIgnoredFiles()
 const overlayPaths = readOverlayPaths()
 checkIgnoreCoverage(overlayPaths)
 checkRanges(ranges, overlayPaths)
+await checkSupabaseContent()
 
 if (problems.length > 0) {
-  process.stderr.write(`[private-guard] refusing to publish private overlay files:\n  ${problems.join('\n  ')}\n`)
+  process.stderr.write(`[private-guard] refusing to publish private data:\n  ${problems.join('\n  ')}\n`)
   process.exit(1)
 }
 
-process.stdout.write('[private-guard] no private overlay files in the repository\n')
+process.stdout.write('[private-guard] no private data in the repository\n')
