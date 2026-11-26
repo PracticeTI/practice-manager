@@ -7,8 +7,9 @@ and fails the pull request when a migration does not apply — and the preview d
 that branch's `POSTGRES_URL`, so it uses the branch instead of the shared preview database.
 Production and Development were left out on purpose: production keeps its own `DATABASE_URL` and
 its constrained `practice_manager_app` login, and local development keeps the Supabase CLI stack
-in `.env.local`. Still open: `preview` has no branch protection, so neither check is required, and
-the hosted baseline adoption in the checklist below.
+in `.env.local`. The repository has a `preview` ruleset that requires these checks — it blocks a
+merge on `Supabase Preview`, `Lint`, `Schema`, `Private overlay` and `Secrets`. Still open: the
+hosted baseline adoption in the checklist below.
 
 Database branches give each pull request its own PostgreSQL, so a change that alters a table
 shape cannot repair or break the shared preview database. The reasoning for wanting them, and
@@ -75,10 +76,11 @@ working directory, and the old placeholder would be a second home nothing replay
   clones a database per commit.
 - **Deploy to production:** hold until the production-branch question below is settled.
 
-The integration adds a **Supabase Preview** check to each pull request. Make it required; a
-migration that fails there otherwise merges and breaks every later branch. `preview` is not
-protected today, so no check is required yet — that is a repository setting, not something this
-directory can enforce.
+The integration adds a **Supabase Preview** check to each pull request, and the `preview` ruleset
+requires it along with `Lint`, `Schema`, `Private overlay` and `Secrets`. A migration that fails
+there cannot merge and so cannot break every later branch. The ruleset gates merges only; direct
+pushes to `preview` are still possible, so the push-triggered `Lint` and private-overlay gates in
+[release.yml](../../.github/workflows/release.yml) remain the backstop.
 
 ## What runs on a branch
 
