@@ -21,6 +21,7 @@ const STANDALONE = path.join(CORE, '.next', 'standalone')
 // `apps/core/server.js`, `packages/`, and the hoisted `node_modules`.
 const APP_IN_STANDALONE = path.join(STANDALONE, 'apps', 'core')
 const STAGE = path.join(REPO_ROOT, 'deploy', 'desktop', '.stage', 'standalone')
+const MIGRATIONS = path.join(REPO_ROOT, 'packages', 'db', 'supabase', 'migrations')
 
 function fail(message) {
   console.error(`[prepare] ${message}`)
@@ -46,6 +47,12 @@ if (existsSync(path.join(CORE, 'public'))) {
 // route); copying the tree removes any doubt for the desktop install.
 if (existsSync(path.join(CORE, 'content'))) {
   cpSync(path.join(CORE, 'content'), path.join(STAGE, 'apps', 'core', 'content'), { recursive: true })
+}
+
+// The schema comes from these files (`npm run db:init` applies them), so they ship with the
+// app even though nothing imports them and tracing cannot see them.
+if (existsSync(MIGRATIONS)) {
+  cpSync(MIGRATIONS, path.join(STAGE, 'apps', 'core', 'db-migrations'), { recursive: true })
 }
 
 console.log(`[prepare] staged ${path.relative(REPO_ROOT, STAGE)}`)

@@ -163,7 +163,8 @@ npm run setup --workspace @practice-manager/desktop              # create the da
 ```
 
 `setup` creates the database when it is missing and then runs the core app's
-`db:init` (32 idempotent schema steps), so `preflight` afterwards passes end to end.
+`db:init` (which applies `packages/db/supabase/migrations`), so `preflight` afterwards passes
+end to end.
 
 The Electron shell (`npm start --workspace @practice-manager/desktop`) runs the same
 preflight before it opens a window: an unsupported Node, an unreachable database or an
@@ -269,15 +270,17 @@ curl http://localhost:3000/api/health
 One application container plus its database. The container runs the queue workers itself
 (`INLINE_WORKERS=true`) and serves the solo edition (`PRACTICE_MANAGER_EDITION=solo`), so
 `/` opens the admin portal and there is no runtime service to deploy. On start it applies
-`npm run db:init` — 29 idempotent steps that create every table a fresh install needs —
-before serving. `DATABASE_URL` sets `sslmode=disable` because the database is only
+`npm run db:init` — the migrations in `packages/db/supabase/migrations`, which create every
+table a fresh install needs — before serving. `DATABASE_URL` sets `sslmode=disable` because the
+database is only
 reachable on the compose network and is never published; add TLS before exposing one on a
 LAN. The image builds from the repository root (`deploy/docker/Dockerfile.core`), so a
 change to `apps/core` or `packages/jobs` rebuilds it.
 
 `npm run db:init --workspace @practice-manager/core` is also the migration path for a
-non-container install (desktop). It needs `DATABASE_URL` (or `.env.local`) and exits
-non-zero if any step fails.
+non-container install (desktop). It needs `DATABASE_URL` (or `.env.local`), records applied
+versions so a second run is a no-op, adopts the baseline on a database that already has the
+schema but no history, and exits non-zero if a migration fails.
 
 ## Domain branding and extensions
 
