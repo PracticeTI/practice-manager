@@ -1,8 +1,12 @@
 # Supabase database branches
 
-Status: the project is scaffolded in [`packages/db/supabase`](../../packages/db/supabase), with a
-baseline migration that reproduces the schema the app creates and a second one that carries the
-runtime role's grants forward, and the GitHub integration is **not** enabled yet.
+Status: branching is **on**. A pull request gets a Supabase preview branch built from
+`packages/db/supabase/migrations` and `seed.sql` — the Supabase Preview check runs `config`,
+`migrations` and `seeding` on every push, and fails the pull request when a migration does not
+apply. Two things are still missing before a preview deployment *uses* that branch: the Vercel
+project has no `POSTGRES_URL` from the Supabase integration, so previews still connect to the
+shared preview database through `DATABASE_URL`, and `preview` has no branch protection, so
+neither check is required.
 
 Database branches give each pull request its own PostgreSQL, so a change that alters a table
 shape cannot repair or break the shared preview database. The reasoning for wanting them, and
@@ -64,7 +68,9 @@ working directory, and the old placeholder would be a second home nothing replay
 - **Deploy to production:** hold until the production-branch question below is settled.
 
 The integration adds a **Supabase Preview** check to each pull request. Make it required; a
-migration that fails there otherwise merges and breaks every later branch.
+migration that fails there otherwise merges and breaks every later branch. `preview` is not
+protected today, so no check is required yet — that is a repository setting, not something this
+directory can enforce.
 
 ## What runs on a branch
 
@@ -119,7 +125,9 @@ database, not just the health endpoint:
 POSTGRES_URL="<branch pooler URL>" npm run rls:verify --workspace @practice-manager/core -- --domain default
 ```
 
-## Before enabling
+## Enablement checklist
+
+Items 1 and 2 are done; 3–5 are still open.
 
 1. **Baseline migration.** Done: `20261126033000_baseline.sql` is a dump of a database built by
   `db:init` + `db:prepare`, and applying it to an empty database reproduces that schema
