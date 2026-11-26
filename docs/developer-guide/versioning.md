@@ -27,8 +27,8 @@ back-merge are harmless.
 
 | Branch | Role |
 | --- | --- |
-| `preview` | Integration and sign-off. Feature pull requests land here; the Preview deployment is the pre-production gate. A push to it runs the `Lint` and private-overlay gates but publishes nothing. |
-| `main` | Production. Promoting `preview` into `main` is the release event: the merge publishes the version, tag and GitHub Release for exactly the code the production deployment will run. |
+| `preview` | Integration and sign-off. Feature pull requests land here; the Preview deployment is the pre-production gate. A push to it runs the `Lint` and private-overlay gates but publishes nothing. A repository ruleset requires `Supabase Preview`, `Lint`, `Schema`, `Private overlay` and `Secrets` before a pull request can merge; direct pushes are still possible, so the push-time gates remain the backstop. |
+| `main` | Production. Promoting `preview` into `main` is the release event: the merge publishes the version, tag and GitHub Release for exactly the code the production deployment will run. Classic branch protection requires `Lint` and `Private overlay`. |
 
 Releases were cut on `preview` until [#35](https://github.com/PracticeTI/practice-manager/issues/35).
 That published a stable version ahead of the sign-off gate, so "released" could mean "not deployed",
@@ -48,8 +48,8 @@ Merging a release-worthy commit into `main` triggers
 `Release` job is gated on it with `needs: lint`, so a lint regression fails the workflow instead of
 shipping inside a published release. Lint warnings do not fail the build. The same check also runs
 on pull requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml), and on every push
-to `preview` — together with the private-overlay guard, since `preview` is unprotected and a direct
-push there would otherwise never be scanned.
+to `preview` — together with the private-overlay guard, because the `preview` ruleset gates merges,
+not direct pushes, so a push there would otherwise never be scanned.
 
 **`Release`** runs `semantic-release`, which:
 

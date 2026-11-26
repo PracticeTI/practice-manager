@@ -280,7 +280,9 @@ change to `apps/core` or `packages/jobs` rebuilds it.
 `npm run db:init --workspace @practice-manager/core` is also the migration path for a
 non-container install (desktop). It needs `DATABASE_URL` (or `.env.local`), records applied
 versions so a second run is a no-op, adopts the baseline on a database that already has the
-schema but no history, and exits non-zero if a migration fails.
+schema but no history, and exits non-zero if a migration fails. CI also runs
+`npm run db:check-drift`, which fails when a per-table initialiser creates something the
+migrations do not — a Supabase preview branch is built from the migrations alone.
 
 ## Domain branding and extensions
 

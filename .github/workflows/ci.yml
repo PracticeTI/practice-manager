@@ -120,6 +120,18 @@ jobs:
           npm run db:init --workspace @practice-manager/core | tee /tmp/db-init.log
           grep -q "up to date" /tmp/db-init.log
 
+      # The legacy initialisers read the generated overlay registry, which the public tree gets
+      # from `prebuild`/`pretest`. CI has no private submodule, so this writes the empty stubs.
+      - name: Generate the overlay stubs
+        run: npm run private:sync --workspace @practice-manager/core
+
+      # The per-table initialisers are still reachable with `db:init -- --bootstrap`. If one of
+      # them creates an object the migrations do not, every bootstrap-built install has it and
+      # every preview branch and fresh install is missing it. Only the per-user queue policies
+      # the bootstrap adds on purpose are allowed.
+      - name: Legacy initialisers have not drifted from the migrations
+        run: npm run db:check-drift --workspace @practice-manager/core
+
   secrets:
     name: Secrets
     runs-on: ubuntu-latest
