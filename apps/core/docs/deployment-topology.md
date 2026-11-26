@@ -45,7 +45,7 @@ and pull-request deployments run alongside it for feedback; they do not replace 
 | Deployment | Source | Purpose | Database |
 |---|---|---|---|
 | Preview environment | `preview` branch | Sign-off gate before `main`. The only pre-production deployment with a stable hostname and the overlay mounted. | Dedicated preview database. |
-| Pull-request previews | Every other branch | Fast review of one change; parallel work without clobbering QA. | Its own database branch, or no write access to the preview database. |
+| Pull-request previews | Every other branch | Fast review of one change; parallel work without clobbering QA. | Its own [database branch](../../../docs/deployment/supabase-branching.md), or no write access to the preview database. |
 
 Per-PR deployments are cheap on Vercel, but three properties of this app make them unsafe as a
 drop-in replacement for the Preview environment:

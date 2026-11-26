@@ -17,7 +17,7 @@
  *   - `user_tokens` covers email change, invite, magic link and password reset
  *
  * Placement: the intended homes are `packages/identity` for the model and
- * `packages/db/migrations` for the migration of record. Those packages are still
+ * `packages/db/supabase/migrations` for the migration of record. Both are still
  * placeholders, so this module is the interim home and is shared by the owner pass
  * (`npm run db:prepare`) and `db:init`, the same way `settingsTables.js` is.
  *
