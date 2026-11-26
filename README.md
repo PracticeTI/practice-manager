@@ -152,7 +152,7 @@ to have installed:
 
 `apps/desktop/preflight` probes both prerequisites on launch and reports actionable
 failures; `apps/desktop/setup` guides the first run through creating the database,
-applying migrations from `packages/db/migrations`, and saving the connection string.
+applying migrations from `packages/db/supabase/migrations`, and saving the connection string.
 
 Both run without Electron, so they can be used over a support call:
 

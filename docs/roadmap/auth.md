@@ -23,7 +23,7 @@ was drafted there; `/admin` and its API routes now live in `apps/core`.
 | Per-admin state | `user_settings`, keyed `(domain, username, key)` — dashboard layout, notification preferences, notification read position |
 | Identity model | [`apps/core/src/lib/identitySchema.js`](../../apps/core/src/lib/identitySchema.js) — the five tables below, created by `db:init` and `db:prepare`; nothing reads them yet |
 | Identity package | [`packages/identity`](../../packages/identity) — placeholder, intended home for the model below |
-| Migrations | [`packages/db/migrations`](../../packages/db/migrations) — placeholder, intended home for the schema change. Until then the interim `identitySchema.js` is the migration of record |
+| Migrations | [`packages/db/supabase/migrations`](../../packages/db/supabase/migrations) — empty, intended home for the schema change. Until then the interim `identitySchema.js` is the migration of record |
 
 Today `username` is the login key and `email` is a contact address used for notifications only.
 An email change is therefore *not* an identity change, and nothing is in flight.
@@ -146,7 +146,8 @@ Sequencing notes:
   same `sub` as a normal sign-in (#7).
 - **The identity model starts in `apps/core`.** [`identitySchema.js`](../../apps/core/src/lib/identitySchema.js)
   is the interim home and is applied by both `db:init` and `db:prepare`. Moving it to
-  `packages/identity` and `packages/db/migrations` is a follow-up, not a prerequisite for #3.
+  `packages/identity` and `packages/db/supabase/migrations` is a follow-up, not a prerequisite
+  for #3.
 - **Identity tables are created with RLS on and no policy.** They hold addresses and password
   hashes, and nothing reads them yet, so the model fails closed. The issue that adds the first
   reader adds the policy and the grant together (#4 or #8), rather than inheriting a table where
@@ -164,9 +165,9 @@ Sequencing notes:
 - Whether an admin should be able to hold more than one verified address for notifications, or
   one primary plus retired aliases only.
 - When to move the identity model from `apps/core/src/lib/identitySchema.js` into
-  `packages/identity` and `packages/db/migrations`. Both are placeholders today; the move should
-  happen once those packages have a client and migration runner, so the model does not drift
-  between two homes.
+  `packages/identity` and `packages/db/supabase/migrations`. `packages/identity` is a
+  placeholder today and the migrations directory is empty; the move should happen once both have
+  a client and a migration runner, so the model does not drift between two homes.
 
 ## Keeping this document current
 

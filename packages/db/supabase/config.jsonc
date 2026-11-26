@@ -1,0 +1,20 @@
+{
+  "$schema": "https://supabase.com/schemas/config/v1.json",
+  // Published as config-as-code: Supabase Branching applies this file to every preview branch.
+  // Only declared properties are pushed, so the sections this deployment does not use (api,
+  // auth, storage, realtime, analytics) stay exactly as the base project has them.
+  // Reference: https://supabase.com/docs/guides/local-development/cli/config
+  "project_id": "practice-manager",
+
+  "db": {
+    // Declared explicitly because branching reads this file to decide whether to replay
+    // supabase/migrations and supabase/seed.sql onto a new branch.
+    "migrations": {
+      "enabled": true
+    },
+    "seed": {
+      "enabled": true,
+      "sql_paths": ["./seed.sql"]
+    }
+  }
+}
