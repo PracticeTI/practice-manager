@@ -1,12 +1,14 @@
 # Supabase database branches
 
-Status: branching is **on**. A pull request gets a Supabase preview branch built from
-`packages/db/supabase/migrations` and `seed.sql` — the Supabase Preview check runs `config`,
-`migrations` and `seeding` on every push, and fails the pull request when a migration does not
-apply. Two things are still missing before a preview deployment *uses* that branch: the Vercel
-project has no `POSTGRES_URL` from the Supabase integration, so previews still connect to the
-shared preview database through `DATABASE_URL`, and `preview` has no branch protection, so
-neither check is required.
+Status: branching is **on**, and the Supabase Vercel integration is installed for **Preview only**.
+A pull request gets a Supabase preview branch built from `packages/db/supabase/migrations` and
+`seed.sql` — the Supabase Preview check runs `config`, `migrations` and `seeding` on every push,
+and fails the pull request when a migration does not apply — and the preview deployment receives
+that branch's `POSTGRES_URL`, so it uses the branch instead of the shared preview database.
+Production and Development were left out on purpose: production keeps its own `DATABASE_URL` and
+its constrained `practice_manager_app` login, and local development keeps the Supabase CLI stack
+in `.env.local`. Still open: `preview` has no branch protection, so neither check is required, and
+the hosted baseline adoption in the checklist below.
 
 Database branches give each pull request its own PostgreSQL, so a change that alters a table
 shape cannot repair or break the shared preview database. The reasoning for wanting them, and
@@ -116,13 +118,15 @@ not run on the hosted project yet, and it is what gives later migrations' object
 
 ## Pointing a preview deployment at its branch
 
-The Supabase Vercel integration writes each preview branch's connection string into the
-connected Vercel project as `POSTGRES_URL`. [`apps/core/src/lib/database.js`](../../apps/core/src/lib/database.js)
-prefers `POSTGRES_URL` over `DATABASE_URL`, so a preview deployment follows its branch with no
-code change — provided the Vercel project does not override `POSTGRES_URL` with the preview
-database by hand. That URL is the transaction-mode pooler (port 6543); re-read the pooler
-caveat in [postgres-rls-rollout.md](../../apps/core/docs/postgres-rls-rollout.md) before relying
-on session-level `SET` state there.
+Installed: the Supabase Vercel integration is connected to the project for **Preview only**, so it
+writes each preview branch's connection string into the Vercel project as `POSTGRES_URL`.
+[`apps/core/src/lib/database.js`](../../apps/core/src/lib/database.js) prefers `POSTGRES_URL` over
+`DATABASE_URL`, so a preview deployment follows its branch with no code change. Do not also set
+`POSTGRES_URL` by hand for Preview, and keep Production out of the integration: a production
+`POSTGRES_URL` would beat the constrained `practice_manager_app` `DATABASE_URL` and put RLS back to
+inert. That URL is the transaction-mode pooler (port 6543); re-read the pooler caveat in
+[postgres-rls-rollout.md](../../apps/core/docs/postgres-rls-rollout.md) before relying on
+session-level `SET` state there.
 
 The branch connection logs in as `postgres`, not as the runtime role, and `POSTGRES_RLS_RUNTIME_ROLE`
 is set on the preview project. That works because `20261126050000_runtime_role_membership.sql`
