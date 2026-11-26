@@ -50,6 +50,12 @@ base project's ACLs, so without it a new table would be invisible to the app on 
 not touch `anon`, `authenticated` or `service_role`; the defence-in-depth revoke for those is in
 [postgres-rls-rollout.md](../../apps/core/docs/postgres-rls-rollout.md).
 
+`20261126050000_runtime_role_membership.sql` makes the role that applies the migrations a member
+of `practice_manager_app`. That is what lets a preview deployment assume the runtime role: the
+Supabase Vercel integration gives it the branch's `postgres` URL, which is neither a superuser
+nor — without this grant — able to run the `SET LOCAL ROLE practice_manager_app` that
+`POSTGRES_RLS_RUNTIME_ROLE` triggers, so every RLS-bound route returned 500 on a branch.
+
 There is no `packages/db/migrations`: the CLI fixes the path to `supabase/migrations` inside the
 working directory, and the old placeholder would be a second home nothing replays.
 
@@ -117,6 +123,13 @@ code change — provided the Vercel project does not override `POSTGRES_URL` wit
 database by hand. That URL is the transaction-mode pooler (port 6543); re-read the pooler
 caveat in [postgres-rls-rollout.md](../../apps/core/docs/postgres-rls-rollout.md) before relying
 on session-level `SET` state there.
+
+The branch connection logs in as `postgres`, not as the runtime role, and `POSTGRES_RLS_RUNTIME_ROLE`
+is set on the preview project. That works because `20261126050000_runtime_role_membership.sql`
+makes the migrating role a member of `practice_manager_app`, so the `SET LOCAL ROLE` succeeds.
+`rls:verify` also needs that membership: run it with the branch URL and the same
+`POSTGRES_RLS_RUNTIME_ROLE`, and it probes as the constrained role instead of warning that the
+login bypasses every policy.
 
 A branch with no schema and no data is indistinguishable from a broken app, so check the
 database, not just the health endpoint:

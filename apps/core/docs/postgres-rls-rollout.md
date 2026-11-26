@@ -365,7 +365,10 @@ connection — `npm run rls:coverage` lists them. The order matters:
    policies and grants, and `20261126040000_runtime_role_default_privileges.sql` extends them to
    objects a later migration creates — and the baseline creates the `practice_manager_app` role
    without LOGIN; `npm run db:prepare` is the compatibility path for a database that predates the
-   migrations.
+   migrations. On a database built from the migrations the migrating role is also made a member of
+   `practice_manager_app` (`20261126050000_runtime_role_membership.sql`), so the `SET LOCAL ROLE`
+   that `POSTGRES_RLS_RUNTIME_ROLE` triggers works even when the connection logs in as the owner —
+   which is how a Supabase preview branch runs.
 2. Give the runtime role a login. On Supabase `NOSUPERUSER`/`NOBYPASSRLS` are superuser-only
    clauses, so they are asserted rather than assigned — `postgres` there is not a superuser and the
    `ALTER` fails:
