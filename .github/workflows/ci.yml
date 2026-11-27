@@ -68,3 +68,96 @@ jobs:
 
       - name: Guard tests
         run: node --test apps/core/test/privateOverlayGuard.test.js
+
+  schema:
+    name: Schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The migrations have to rebuild the whole schema on an empty database: that is what a
+    # Supabase preview branch does, and what a fresh Docker or desktop install does. Nothing
+    # here needs a Supabase project.
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: practice
+          POSTGRES_PASSWORD: practice
+          POSTGRES_DB: practice
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://practice:practice@localhost:5432/practice
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Reads the app's .nvmrc so the CI runtime cannot drift from the pinned version.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'apps/core/.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Migration runner tests
+        run: node --import ./scripts/alias-hooks.mjs --test test/migrations.test.js
+        working-directory: apps/core
+
+      - name: Build the schema from migrations
+        run: npm run db:init --workspace @practice-manager/core
+
+      # The second run proves the applied-version history works, so a container restart does
+      # not replay the baseline over existing tables.
+      - name: Applying them again is a no-op
+        run: |
+          npm run db:init --workspace @practice-manager/core | tee /tmp/db-init.log
+          grep -q "up to date" /tmp/db-init.log
+
+      # The legacy initialisers read the generated overlay registry, which the public tree gets
+      # from `prebuild`/`pretest`. CI has no private submodule, so this writes the empty stubs.
+      - name: Generate the overlay stubs
+        run: npm run private:sync --workspace @practice-manager/core
+
+      # The per-table initialisers are still reachable with `db:init -- --bootstrap`. If one of
+      # them creates an object the migrations do not, every bootstrap-built install has it and
+      # every preview branch and fresh install is missing it. Only the per-user queue policies
+      # the bootstrap adds on purpose are allowed.
+      - name: Legacy initialisers have not drifted from the migrations
+        run: npm run db:check-drift --workspace @practice-manager/core
+
+  secrets:
+    name: Secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history: the scan diffs the pull request against the branch it targets.
+          fetch-depth: 0
+
+      # Only the commits this pull request adds are scanned, so a finding that predates the job
+      # cannot block every branch. The rules are read from the base branch: a pull request that
+      # edits .gitleaks.toml cannot allowlist the secret it introduces. `.env.preview` and
+      # `.env.production` hold dotenvx ciphertext, which the config allowlists by path.
+      - name: Scan the new commits
+        run: |
+          base="$(git merge-base '${{ github.event.pull_request.base.sha }}' HEAD)"
+          if git cat-file -e "$base:.gitleaks.toml" 2>/dev/null; then
+            git show "$base:.gitleaks.toml" > "$RUNNER_TEMP/gitleaks.toml"
+          else
+            cp .gitleaks.toml "$RUNNER_TEMP/gitleaks.toml"
+          fi
+          docker run --rm \
+            -v "$PWD:/repo" \
+            -v "$RUNNER_TEMP/gitleaks.toml:/gitleaks.toml:ro" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo \
+            --config /gitleaks.toml --redact --verbose --log-opts="$base..HEAD"
+

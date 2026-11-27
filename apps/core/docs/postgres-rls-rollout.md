@@ -360,7 +360,15 @@ grants are per-database) before the runtime points at it.
 `SUPERUSER`, `BYPASSRLS` or table ownership, every policy is inert for any route that opens a plain
 connection — `npm run rls:coverage` lists them. The order matters:
 
-1. `npm run db:prepare` as the owner, so every table exists with its policy and grants.
+1. `npm run db:init` as the owner, so every table exists with its policies and grants. A database
+   created from `packages/db/supabase/migrations` already has them — the baseline installs the
+   policies and grants, and `20261126040000_runtime_role_default_privileges.sql` extends them to
+   objects a later migration creates — and the baseline creates the `practice_manager_app` role
+   without LOGIN; `npm run db:prepare` is the compatibility path for a database that predates the
+   migrations. On a database built from the migrations the migrating role is also made a member of
+   `practice_manager_app` (`20261126050000_runtime_role_membership.sql`), so the `SET LOCAL ROLE`
+   that `POSTGRES_RLS_RUNTIME_ROLE` triggers works even when the connection logs in as the owner —
+   which is how a Supabase preview branch runs.
 2. Give the runtime role a login. On Supabase `NOSUPERUSER`/`NOBYPASSRLS` are superuser-only
    clauses, so they are asserted rather than assigned — `postgres` there is not a superuser and the
    `ALTER` fails:

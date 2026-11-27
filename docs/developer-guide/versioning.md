@@ -6,7 +6,7 @@ automatically from commit messages. Nobody edits the version by hand.
 ## How a version is chosen
 
 `release.config.mjs` reads [Conventional Commits](https://www.conventionalcommits.org/) landed on
-the `preview` branch since the last release and picks the next version from them:
+the `main` branch since the last release and picks the next version from them:
 
 | Commit | Version effect | Example |
 | --- | --- | --- |
@@ -20,17 +20,36 @@ A `BREAKING CHANGE:` footer works on any commit type. The `!` shorthand goes imm
 type or scope: `feat!:` or `feat(api)!:`.
 
 Commits that match nothing above are ignored, so merge commits such as
-`Merge pull request #47 from contributor:preview` are harmless.
+`Merge pull request #47 from contributor:preview` and the `chore: merge main into preview`
+back-merge are harmless.
+
+## Branches
+
+| Branch | Role |
+| --- | --- |
+| `preview` | Integration and sign-off. Feature pull requests land here; the Preview deployment is the pre-production gate. A push to it runs the `Lint` and private-overlay gates but publishes nothing. A repository ruleset requires `Supabase Preview`, `Lint`, `Schema`, `Private overlay` and `Secrets` before a pull request can merge; direct pushes are still possible, so the push-time gates remain the backstop. |
+| `main` | Production. Promoting `preview` into `main` is the release event: the merge publishes the version, tag and GitHub Release for exactly the code the production deployment will run. Classic branch protection requires `Lint` and `Private overlay`. |
+
+Releases were cut on `preview` until [#35](https://github.com/PracticeTI/practice-manager/issues/35).
+That published a stable version ahead of the sign-off gate, so "released" could mean "not deployed",
+and a revert before promotion burned a version. New tags land on `main`; `v1.2.0` was the last one
+cut on `preview` and arrives on `main` with the first promotion after the switch, without being
+released a second time — the tag already exists.
+
+Because only `main` cuts releases, a `feat:` or `fix:` merged into `preview` stays unreleased until
+the promotion request merges.
 
 ## What happens on a release
 
-Pushing a release-worthy commit to `preview` triggers
-[.github/workflows/release.yml](../../.github/workflows/release.yml), which runs two jobs:
+Merging a release-worthy commit into `main` triggers
+[.github/workflows/release.yml](../../.github/workflows/release.yml), which runs three jobs:
 
 **`Lint`** runs `npm run lint` (`eslint .`). It exits non-zero on any lint *error*, and the
 `Release` job is gated on it with `needs: lint`, so a lint regression fails the workflow instead of
 shipping inside a published release. Lint warnings do not fail the build. The same check also runs
-on pull requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml).
+on pull requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml), and on every push
+to `preview` — together with the private-overlay guard, because the `preview` ruleset gates merges,
+not direct pushes, so a push there would otherwise never be scanned.
 
 **`Release`** runs `semantic-release`, which:
 
@@ -41,18 +60,23 @@ on pull requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml).
    `chore(release): <version>`.
 4. Publishes a GitHub Release.
 
-The version commit deliberately carries no `[skip ci]`. GitHub treats that keyword on a pull
-request's head commit as a request to skip every workflow, including `opened`, `reopened` and
-`synchronize`, and this commit is the tip of `preview` — so it is the head of the
-`preview` → `main` release pull request. With the keyword, that pull request's required `Lint` and
-`Private overlay` checks would never report and the branch protection rule could never be
-satisfied. `release.yml` skips its own `release` job for the version commit instead.
+The version commit deliberately carries no `[skip ci]`. GitHub applies that keyword to every
+workflow for a pull request whose head commit contains it, so a commit carrying it would leave a
+promotion request's required checks unreported. The version commit now lands on `main`, where it is
+ordinary history; if `RELEASE_TOKEN` is a PAT, its push starts this workflow again and the second
+run finds nothing to release.
+
+**`Merge main into preview`** back-merges `main` into `preview` after a release. The release job is
+the only thing that writes to `main` alone, so this is what keeps `preview` carrying the version and
+CHANGELOG the release just wrote. Without it the next promotion conflicts on `package.json` and the
+Preview deployment keeps reporting the previous version. A conflicting back-merge fails the job with
+nothing pushed; resolve it locally with a normal `main` → `preview` merge.
 
 Nothing is published to the public npm registry — `package.json` is `"private": true` and the npm
 plugin is configured with `npmPublish: false`.
 
-Only `preview` cuts releases. Merging `preview` into `main` does not create a second release for
-the same commits, because the tag already exists.
+Only `main` cuts releases. A promotion whose commits were already tagged creates no second release,
+because the tag already exists.
 
 ## App version in the UI
 
@@ -101,24 +125,29 @@ without creating a tag, commit, or release.
 
 ## Troubleshooting
 
-**The workflow fails pushing to `preview`.** The branch is protected against the workflow's
-`GITHUB_TOKEN`. Either allow the GitHub Actions app to bypass the protection, or create a
-`RELEASE_TOKEN` repository secret (fine-grained PAT, or a GitHub App installation token with
-`contents: write`) — the workflow already prefers it when present.
+**The workflow fails with `RELEASE_TOKEN is not set`.** `main` requires a bypass actor: the branch
+protection rule constrains pushes as well as merges, and the Actions bot is never one. Create the
+`RELEASE_TOKEN` repository secret from a token belonging to an actor that bypasses the rule — a
+fine-grained PAT for a repository admin (this repository runs with `enforce_admins` disabled, so
+admins bypass), or a GitHub App installation token for an app on a ruleset's bypass list. The token
+needs `contents: write` to push the version commit and tag, and also `issues: write` and
+`pull-requests: write` for the post-release comments and labels: the `Release` job's `permissions:`
+block only governs `GITHUB_TOKEN`, which a non-dry-run release does not use, so any scope the token
+lacks is lost silently (`@semantic-release/github` logs the `403` and carries on). The workflow
+prefers `RELEASE_TOKEN` over `GITHUB_TOKEN` and fails on the missing secret before writing anything.
 
 **No release is created.** That is expected when the new commits are all non-release types
-(`docs:`, `chore:`, `refactor:` …), or when the same commits were already released.
+(`docs:`, `chore:`, `refactor:` …), when the same commits were already released on `preview` before
+the switch, or when the promotion contained no release-worthy commit.
 
-**`Error: ERELEASEBRANCHES`.** semantic-release was run on a branch other than `preview`.
+**`Error: ERELEASEBRANCHES`.** semantic-release was run on a branch other than `main`.
 
-**The `preview` → `main` pull request is blocked on `Lint` / `Private overlay`.** Those checks are
-required on `main`, but GitHub starts no `pull_request` workflow at all when the pull request's
-head commit message contains `[skip ci]` (or `[ci skip]`, `[no ci]`, `[skip actions]`,
+**The promotion request is blocked on `Lint` / `Private overlay`.** Those checks are required on
+`main`, and GitHub starts no `pull_request` workflow at all when the pull request's head commit
+message contains `[skip ci]` (or `[ci skip]`, `[no ci]`, `[skip actions]`,
 `[actions skip]`) **anywhere in the message, not just in the subject** — so a body that merely
-mentions the keyword suppresses the run too. A release commit is such a head commit, so the checks stay "Expected" and the
-merge stays blocked. If you see this after a version commit was pushed with the keyword, push a
-normal commit to `preview` — the newer head clears the suppression — and fix the commit message
-source rather than adding another keyword.
+mentions the keyword suppresses the run too, and the checks stay "Expected". Push a normal commit to
+`preview` to give the request a new head commit; do not add the keyword to a commit message.
 
 ## Adding a verification gate
 

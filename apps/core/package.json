@@ -1,6 +1,6 @@
 {
   "name": "@practice-manager/core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -42,6 +42,7 @@
     "rls:coverage": "node scripts/rls-coverage.mjs",
     "db:prepare": "npm run rls:policies",
     "db:init": "node --env-file-if-exists=.env.local --import ./scripts/alias-hooks.mjs scripts/db-init.mjs",
+    "db:check-drift": "node --env-file-if-exists=.env.local --import ./scripts/alias-hooks.mjs scripts/check-schema-drift.mjs",
     "test": "node --import ./scripts/alias-hooks.mjs --test \"test/**/*.test.js\" \"test/**/*.test.mjs\"",
     "test:rls": "node --import ./scripts/alias-hooks.mjs --test test/postgresRlsContext.test.js && node --import ./scripts/alias-hooks.mjs --env-file=.env.local --test test/patientFilesRls.integration.test.js",
     "pretest": "node --env-file-if-exists=.env.local scripts/sync-private-overlay.mjs"

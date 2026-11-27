@@ -1,0 +1,30 @@
+#!/bin/sh
+# Refuse to push private overlay files or private domain names.
+#
+# Git passes one line per pushed ref on stdin: <local ref> <local sha> <remote ref> <remote sha>.
+# A deleted ref has no local sha; a new ref has an all-zero remote sha.
+set -eu
+
+cd "$(git rev-parse --show-toplevel)"
+
+if ! command -v node >/dev/null 2>&1; then
+  echo '[private-guard] node is required to run the pre-push guard' >&2
+  exit 1
+fi
+
+set --
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "$local_sha" ] || continue
+  case "$local_sha" in
+    *[!0]*) ;;
+    *) continue ;;
+  esac
+
+  if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+    set -- "$@" --range "$local_sha"
+  else
+    set -- "$@" --range "$remote_sha..$local_sha"
+  fi
+done
+
+exec node apps/core/scripts/check-private-files.mjs "$@"

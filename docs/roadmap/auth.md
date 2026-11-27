@@ -1,6 +1,6 @@
 # Authentication roadmap
 
-Last updated: 2026-11-23
+Last updated: 2026-11-25
 
 How admin accounts identify a person today, and the two milestones that move them onto a
 verified-email identity with federated sign-in. The executable work lives on GitHub:
@@ -21,8 +21,9 @@ was drafted there; `/admin` and its API routes now live in `apps/core`.
 | Dev bypass | `localhost-dev-admin-bypass-token` and `vercel-preview-admin-bypass-token` in [`apps/core/src/lib/clientAdminAuth.js`](../../apps/core/src/lib/clientAdminAuth.js) |
 | Row-level security | `app.current_username` / `app.current_domain`, bound in [`apps/core/src/lib/postgresRlsContext.js`](../../apps/core/src/lib/postgresRlsContext.js) and enforced by the `user_settings` policy in [`apps/core/src/lib/rlsPolicies.js`](../../apps/core/src/lib/rlsPolicies.js) |
 | Per-admin state | `user_settings`, keyed `(domain, username, key)` — dashboard layout, notification preferences, notification read position |
+| Identity model | [`apps/core/src/lib/identitySchema.js`](../../apps/core/src/lib/identitySchema.js) — the five tables below, created by `db:init` and `db:prepare`; nothing reads them yet |
 | Identity package | [`packages/identity`](../../packages/identity) — placeholder, intended home for the model below |
-| Migrations | [`packages/db/migrations`](../../packages/db/migrations) — placeholder, intended home for the schema change |
+| Migrations | [`packages/db/supabase/migrations`](../../packages/db/supabase/migrations) — empty, intended home for the schema change. Until then the interim `identitySchema.js` is the migration of record |
 
 Today `username` is the login key and `email` is a contact address used for notifications only.
 An email change is therefore *not* an identity change, and nothing is in flight.
@@ -143,6 +144,14 @@ Sequencing notes:
   development scaffolding and are not part of the identity model.
 - **`simulate-admin` keeps working.** It mints a token for a real account and must carry the
   same `sub` as a normal sign-in (#7).
+- **The identity model starts in `apps/core`.** [`identitySchema.js`](../../apps/core/src/lib/identitySchema.js)
+  is the interim home and is applied by both `db:init` and `db:prepare`. Moving it to
+  `packages/identity` and `packages/db/supabase/migrations` is a follow-up, not a prerequisite
+  for #3.
+- **Identity tables are created with RLS on and no policy.** They hold addresses and password
+  hashes, and nothing reads them yet, so the model fails closed. The issue that adds the first
+  reader adds the policy and the grant together (#4 or #8), rather than inheriting a table where
+  RLS was silently off.
 
 ## Open questions
 
@@ -155,9 +164,10 @@ Sequencing notes:
   Current thinking: the policy owns it, so it applies to Entra tenant pinning the same way.
 - Whether an admin should be able to hold more than one verified address for notifications, or
   one primary plus retired aliases only.
-- Whether the identity model lands in `packages/identity` and `packages/db/migrations` as those
-  packages are built out, or stays in `apps/core` until a second app needs it. The issues assume
-  the former, with `apps/core` as the interim home.
+- When to move the identity model from `apps/core/src/lib/identitySchema.js` into
+  `packages/identity` and `packages/db/supabase/migrations`. `packages/identity` is a
+  placeholder today and the migrations directory is empty; the move should happen once both have
+  a client and a migration runner, so the model does not drift between two homes.
 
 ## Keeping this document current
 
