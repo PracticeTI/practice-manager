@@ -214,9 +214,23 @@ do $$ begin
     end if;
 end $$;
 
+-- `content_relationships` gets its foreign keys only where `content.id` is unique. A database
+-- built from the baseline has `content_pkey` and takes both; the hosted project's `content`
+-- predates the baseline and has neither a primary key nor a sequence default, so PostgreSQL
+-- refuses the constraint with `there is no unique constraint matching given keys`. Adding the
+-- key to that table is separate work, so the constraint is conditional rather than this file
+-- altering a table it does not own.
 do $$ begin
     if not exists (select 1 from pg_constraint where conname = 'content_relationships_source_id_fkey'
-        and conrelid = 'public.content_relationships'::regclass) then
+        and conrelid = 'public.content_relationships'::regclass)
+       and exists (
+           select 1 from pg_constraint co
+           join pg_class t on t.oid = co.conrelid
+           join pg_namespace n on n.oid = t.relnamespace
+           where n.nspname = 'public' and t.relname = 'content' and co.contype in ('p', 'u')
+             and co.conkey = array[(select attnum from pg_attribute
+                                    where attrelid = t.oid and attname = 'id')]::int2[]
+       ) then
         ALTER TABLE ONLY public.content_relationships
     ADD CONSTRAINT content_relationships_source_id_fkey FOREIGN KEY (source_id) REFERENCES public.content(id) ON DELETE CASCADE;
     end if;
@@ -224,7 +238,15 @@ end $$;
 
 do $$ begin
     if not exists (select 1 from pg_constraint where conname = 'content_relationships_target_id_fkey'
-        and conrelid = 'public.content_relationships'::regclass) then
+        and conrelid = 'public.content_relationships'::regclass)
+       and exists (
+           select 1 from pg_constraint co
+           join pg_class t on t.oid = co.conrelid
+           join pg_namespace n on n.oid = t.relnamespace
+           where n.nspname = 'public' and t.relname = 'content' and co.contype in ('p', 'u')
+             and co.conkey = array[(select attnum from pg_attribute
+                                    where attrelid = t.oid and attname = 'id')]::int2[]
+       ) then
         ALTER TABLE ONLY public.content_relationships
     ADD CONSTRAINT content_relationships_target_id_fkey FOREIGN KEY (target_id) REFERENCES public.content(id) ON DELETE CASCADE;
     end if;
