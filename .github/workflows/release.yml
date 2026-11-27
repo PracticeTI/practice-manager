@@ -1,19 +1,27 @@
 name: Release
 
-# A push to the production branch cuts a release: semantic-release derives the version from the
-# Conventional Commits since the last tag, then updates the manifests, CHANGELOG.md and tag.
-# `preview` no longer releases: promoting it into `main` is what publishes a version, so a release
+# A release is cut in two steps, because `main` requires a pull request and status checks and
+# semantic-release can no longer push its release commit there:
+#
+# 1. `Release PR` runs on every push to `main` — a promotion request merging. It asks
+#    semantic-release for the next version and its release notes, writes the version bump and the
+#    CHANGELOG entry onto a `release/next` branch, and opens that branch as a pull request into
+#    `main`. Nothing is tagged or published yet.
+# 2. `Publish` runs on a push to `main` whose `package.json` version has no `v<version>` tag yet —
+#    the merge of that pull request. It tags the merge commit and creates the GitHub Release, and
+#    writes nothing back to `main`, so no bypass actor is involved.
+#
+# `preview` no longer releases: promoting it into `main` is what starts a release, so a release
 # always describes what production runs. A push to `preview` still runs the `Lint` job below —
 # `preview` is unprotected, so a direct push there needs the same lint and private-overlay gates a
-# pull request gets — but only `main` runs the `release` job. The manual dispatch exists to preview
-# a release without publishing one.
+# pull request gets. The manual dispatch previews the next release without opening a pull request.
 on:
   push:
     branches: [main, preview]
   workflow_dispatch:
     inputs:
       dry_run:
-        description: Compute the next version and release notes without publishing a release
+        description: Compute the next version and release notes without opening a pull request
         type: boolean
         default: false
 
@@ -55,37 +63,85 @@ jobs:
       - name: No private overlay files
         run: node apps/core/scripts/check-private-files.mjs
 
-  release:
-    name: Release
+  release-pr:
+    name: Release PR
     needs: lint
-    # A push to `preview` only runs the gates above: promoting `preview` into `main` is the release
-    # event, so the version is tagged once the promoted commit is what production runs.
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    # A push to `preview` only runs the gates above: promoting `preview` into `main` is what starts
+    # a release, so the version is prepared once the promoted commit is what production runs.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write # push the release commit and tag, create the GitHub release
-      issues: write # comment on issues resolved by the release
-      pull-requests: write # comment on pull requests included in the release
+      contents: write # push the release/next branch
+      pull-requests: write # open and update the release pull request
     steps:
-      # `main` requires status checks, and a branch protection rule constrains pushes as well as
-      # merges, so the version commit must be pushed by an actor that bypasses the rule. The
-      # workflow's own token is not one. Check before semantic-release writes the tag and
-      # manifests, so a missing token fails here instead of on a rejected push. Remove this step
-      # if the GitHub Actions app is added to a ruleset's bypass list instead.
+      # The pull request has to be opened by an actor rather than by GITHUB_TOKEN: GitHub starts no
+      # workflow for a pull request created with GITHUB_TOKEN, so the `Lint` and `Private overlay`
+      # checks `main` requires would never report and the request could never merge. The token only
+      # needs to push a branch and open a pull request — it does not need to bypass the protection.
       - name: Check the release token
-        if: github.event.inputs.dry_run != 'true'
         env:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           if [ -z "$RELEASE_TOKEN" ]; then
-            echo "::error::RELEASE_TOKEN is not set. main is protected, so the version commit has to be pushed by an admin PAT or a GitHub App on a bypass list; the workflow's GITHUB_TOKEN cannot."
+            echo "::error::RELEASE_TOKEN is not set. A pull request opened with GITHUB_TOKEN starts no workflow, so the checks main requires would never report; use a fine-grained PAT for an account with contents and pull-requests write. It does not need to bypass main's protection."
             exit 1
           fi
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: main
+          # semantic-release needs the full history and all tags to find the previous release.
+          fetch-depth: 0
+          # Check out with the token that also opens the pull request, so the branch push and the
+          # request come from the same actor.
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      # Reads the app's .nvmrc so the CI runtime cannot drift from the pinned version.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'apps/core/.nvmrc'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `package.json` carrying a version no tag points at means the release pull request already
+      # merged and the `Publish` job owns this push, so there is nothing to open here.
+      - name: Read the release state
+        id: state
+        run: node scripts/semantic-release/release-state.mjs
+
+      # semantic-release is asked in dry-run mode, so this only computes the version and the release
+      # notes; the script writes them onto `release/next` and opens it as a pull request.
+      - name: Open or refresh the release pull request
+        if: steps.state.outputs.pending == 'false'
+        env:
+          # semantic-release only analyses commits here, but it checks push access to `main` first.
+          # GH_TOKEN is the actor `gh` uses to open the pull request.
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: node scripts/semantic-release/release-pr.mjs ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+
+  publish:
+    name: Publish
+    needs: lint
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the tag
+      issues: write # comment on issues resolved by the release
+      pull-requests: write # comment on pull requests included in the release
+    outputs:
+      published: ${{ steps.release.outputs.published }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
           # semantic-release needs the full history and all tags to find the previous release.
           fetch-depth: 0
 
@@ -99,20 +155,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Release
-        env:
-          # A fine-grained PAT (or GitHub App installation token) belonging to an actor that can
-          # bypass `main`'s protection. See docs/developer-guide/versioning.md.
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: npx semantic-release ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+      # A version that is already on `main` without a tag is what the merge of the release pull
+      # request leaves behind. Any other push has the `Release PR` job to prepare one first.
+      - name: Read the release state
+        id: state
+        run: node scripts/semantic-release/release-state.mjs
 
-  # The release job is the only thing that writes to `main` alone, so merging it back is what keeps
-  # `preview` carrying the version and CHANGELOG the release just wrote — otherwise the next
-  # promotion conflicts on `package.json` and the footer keeps reporting the old version.
+      # Tags and the GitHub Release for them only: the manifests and CHANGELOG are already on
+      # `main`, so semantic-release pushes no commit, and the workflow's own token is enough — no
+      # actor with a bypass is involved. `verify-release-version` fails the run before the tag if
+      # the commits analyse to a version other than the one the release pull request merged.
+      - name: Publish
+        id: release
+        if: steps.state.outputs.pending == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx semantic-release
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
+  # The release pull request merges into `main` only, so merging `main` back is what keeps `preview`
+  # carrying the version and CHANGELOG it wrote — otherwise the next promotion conflicts on
+  # `package.json` and the footer keeps reporting the old version.
   sync-preview:
     name: Merge main into preview
-    needs: release
-    if: needs.release.result == 'success' && github.event.inputs.dry_run != 'true'
+    needs: publish
+    if: needs.publish.outputs.published == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

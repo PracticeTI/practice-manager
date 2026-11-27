@@ -22,14 +22,13 @@
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "jobs:once": "npm run jobs:once --workspace @practice-manager/jobs",
-    "release": "semantic-release"
+    "release": "semantic-release",
+    "release:pr": "node scripts/semantic-release/release-pr.mjs"
   },
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
-    "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^11.0.6",
-    "@semantic-release/npm": "^12.0.2",
     "@semantic-release/release-notes-generator": "^14.1.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "semantic-release": "^24.2.9"

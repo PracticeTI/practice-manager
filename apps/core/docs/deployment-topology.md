@@ -35,7 +35,8 @@ The Vercel build must mount the private overlay (see [private-domains.md](./priv
 Without it the build still succeeds, but every customer hostname resolves to the default domain
 and serves that domain's site and branding under the customer's URL. Set
 `PRIVATE_OVERLAY_REQUIRED=1` (with `PRIVATE_OVERLAY_TOKEN`, or Vercel GitHub app access to the
-overlay repository) so a build that cannot see the overlay fails instead of deploying.
+overlay repository) so a build that cannot see the overlay fails instead of deploying. On Vercel,
+scope those variables to Production and the `preview` branch only.
 
 ## Preview deployments
 
@@ -46,6 +47,14 @@ and pull-request deployments run alongside it for feedback; they do not replace 
 |---|---|---|---|
 | Preview environment | `preview` branch | Sign-off gate before `main`. The only pre-production deployment with a stable hostname and the overlay mounted. | Dedicated preview database. |
 | Pull-request previews | Every other branch | Fast review of one change; parallel work without clobbering QA. | Its own [database branch](../../../docs/deployment/supabase-branching.md), or no write access to the preview database. |
+
+The overlay reaches the Preview environment by scoping `PRIVATE_OVERLAY_TOKEN` and
+`PRIVATE_OVERLAY_REQUIRED` to the Preview environment's `preview` branch, so pull-request previews
+build the empty stubs. If they are left on every Preview branch instead, every preview build
+receives the token — and Git fork protection is the only control. Authorizing a deployment from a
+fork is then the one action that must never happen: a fork commit runs its own build scripts, so
+nothing in this repository can protect a token that a fork's build was given. See
+[private-domains.md → Preview deployments and forks](./private-domains.md#preview-deployments-and-forks).
 
 Per-PR deployments are cheap on Vercel, but three properties of this app make them unsafe as a
 drop-in replacement for the Preview environment:
