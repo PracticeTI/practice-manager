@@ -44,7 +44,7 @@ src/private/                     optional overlay checkout (absent in a public t
 ```
 
 [`scripts/sync-private-overlay.mjs`](../scripts/sync-private-overlay.mjs) runs on
-`postinstall`, `predev`, `prebuild`, `prelint` and `pretest`:
+`predev`, `prebuild` and `pretest`, and on demand through `private:*`:
 
 1. removes the files the previous run copied (recorded in `.private-overlay.json`);
 2. copies every overlay directory into the matching project directory;
@@ -176,22 +176,81 @@ Those hosts then fall through to `DEFAULT_DOMAIN_MODE` and render the default do
 the customer's domain, and nothing fails.
 
 Set `PRIVATE_OVERLAY_REQUIRED=1` on every deployment that must serve customer domains so this
-regression fails the build instead of reaching production:
+regression fails the build instead of reaching production. On Vercel those are Production and the
+`preview` branch — the sign-off deployment — not every Preview deployment:
 
 ```bash
-# Vercel project → Settings → Environment Variables (Production + Preview)
-PRIVATE_OVERLAY_REQUIRED=1
-PRIVATE_OVERLAY_TOKEN=<GitHub token with read access to the overlay repository>
+# Vercel project → Settings → Environment Variables
+# Production:                    PRIVATE_OVERLAY_REQUIRED=1, PRIVATE_OVERLAY_TOKEN=<PAT>
+# Preview, branch `preview`:     PRIVATE_OVERLAY_REQUIRED=1, PRIVATE_OVERLAY_TOKEN=<PAT>
+# Preview, every other branch:   neither variable
 ```
+
+```bash
+# Vercel CLI 64.6.0 or later. Remove any all-branches Preview copy first (`vercel env ls
+# --environment preview`): a branch-scoped value overrides it, but the all-branches copy would
+# still reach every other branch.
+vercel env add PRIVATE_OVERLAY_TOKEN --environment preview --git-branch preview \
+  --sensitive < token.txt
+vercel env add PRIVATE_OVERLAY_REQUIRED --environment preview --git-branch preview <<< '1'
+```
+
+Per-PR previews then build the empty stubs, which costs them nothing: a `*.vercel.app` URL
+resolves to no customer host anyway (see
+[deployment-topology.md](./deployment-topology.md#preview-deployments)), and a pull request from a
+fork is never built with a token it could read.
 
 With a token set, the build clones the overlay itself and does not depend on Vercel's submodule
 support. Alternatively, grant the Vercel GitHub app access to the overlay repository so the
 submodule clones normally, and keep `PRIVATE_OVERLAY_REQUIRED=1` as the guard.
 
+### Preview deployments and forks
+
+A build holds a token safely only when the commit it builds is trusted. A pull request from a fork
+runs the fork's own `package.json`, `vercel.json` and scripts, so any check in this repository —
+`VERCEL_GIT_REPO_OWNER`, the branch name, a guard inside `sync-private-overlay.mjs` — runs *after*
+code the fork controls, and a fork that wants the token runs its own command first. `vercel.json`
+does not help either: the fork's copy is the one Vercel reads. The boundary has to be project
+settings, which the deployed commit cannot rewrite:
+
+1. **Git fork protection** (Project Settings → Security) stays on, and no deployment from a fork is
+   ever authorized on this project; authorizing one builds the fork's commit with these variables.
+   A fork that needs a live preview can be built in a project that has no overlay token.
+2. **Branch-scoped Preview variables** as above, so the only Preview deployment holding the token
+   is the one built from `preview`.
+
+If the variables stay on every Preview branch instead, fork protection is the only control and
+the token sits one authorized deployment away from a fork's build script. Keep such a token to a
+fine-grained credential with read-only contents on the overlay repository alone, so the worst case
+is that repository's contents plus one revocable credential.
+
+Branch scoping matches the branch *name*, and a fork may name its branch `preview`, so the second
+control relies on nobody authorizing that deployment. The repository cannot add a layer here
+either: `ignoreCommand` in [`vercel.json`](../vercel.json) overrides the project's Ignored Build
+Step, and a fork ships its own copy of that file. A check that runs before install is only possible
+by deleting `ignoreCommand` from `vercel.json` and putting both rules in the dashboard's **Ignored
+Build Step** (Settings → Build and Deployment):
+
+```bash
+if [ "$VERCEL_GIT_REPO_OWNER" != "PracticeTI" ]; then exit 0; fi
+node scripts/check-docs-only-change.mjs
+```
+
+That trades the repository-defined [documentation-only
+skip](./deployment-topology.md#skipping-builds-for-documentation) for a dashboard setting, so it is
+worth doing only if authorizing a fork deployment cannot be ruled out. Confirm on a fork pull
+request's build log that `VERCEL_GIT_REPO_OWNER` reports the fork rather than this repository before
+relying on it.
+
+When a branch other than `preview` needs the overlay — a domain change is the usual reason — do
+not widen the variables. Build it in GitHub Actions on `pull_request`, which passes secrets only to
+branches in this repository and never to a fork, then `vercel build` and `vercel deploy --prebuilt`
+into a second project that has no Git integration.
+
 ### Troubleshooting the overlay token
 
 A bad token surfaces as `could not clone the private overlay repository: …` during
-`postinstall`, so the whole build stops after a few seconds.
+`prebuild`, so the whole build stops after a few seconds.
 
 | Git error | Meaning |
 |-----------|---------|
