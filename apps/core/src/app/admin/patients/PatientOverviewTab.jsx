@@ -288,6 +288,73 @@ export default function PatientOverviewTab({
                                                                 : workerStatusLabel === 'Inactive'
                                                                     ? 'bg-gray-100 text-gray-700'
                                                                     : (cardStyle?.status.accent || 'bg-amber-100 text-amber-700')
+
+                                        // The Open… links are shared by the inline row and the helper
+                                        // card's bottom row, so they are built once here.
+                                        const hasAgentCardLinks = showOpenReportLink || showOpenAnalysisLink || showOpenEquipmentLink || showOpenQuoteLink || showOpenSummaryLink
+                                        const agentCardLinks = (
+                                            <>
+                                                {showOpenReportLink && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (agent.key === 'hsrCreator') {
+                                                                openReportEditor(currentReportRow)
+                                                                return
+                                                            }
+                                                            setActiveTab('report')
+                                                        }}
+                                                        className={`text-xs font-medium ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
+                                                    >
+                                                        {agent.key === 'hsrCreator' ? 'Open report' : 'Open reports'}
+                                                    </button>
+                                                )}
+                                                {showOpenAnalysisLink && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setActiveTab('analysis')}
+                                                        className={`text-xs font-semibold ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
+                                                    >
+                                                        Open analysis
+                                                    </button>
+                                                )}
+                                                {showOpenEquipmentLink && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setActiveTab('equipment')}
+                                                        className={`text-xs font-semibold ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
+                                                    >
+                                                        Open equipment
+                                                    </button>
+                                                )}
+                                                {showOpenQuoteLink && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setActiveTab('quotes')}
+                                                        className={`text-xs font-semibold ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
+                                                    >
+                                                        Open quotes
+                                                    </button>
+                                                )}
+                                                {showOpenSummaryLink && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            // Only the HSR Summariser card names its own style; every other
+                                                            // card opens the patient's primary summary view (the FCA summary
+                                                            // when they have one, otherwise the generic style). Summaries
+                                                            // renders inside the Transcripts pane, so open that pane.
+                                                            setSelectedSummaryStyle(agent.key === 'hsrSummariser' ? 'otf10-home-services' : '')
+                                                            setSelectedSummaryTranscriptId(null)
+                                                            setActiveTab('transcripts')
+                                                        }}
+                                                        className={`text-xs font-medium ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
+                                                    >
+                                                        Open summary
+                                                    </button>
+                                                )}
+                                            </>
+                                        )
                                         return (
                                             <Fragment key={agent.key}>
                                                 {agent.key === firstInactiveAgentKey && (
@@ -333,7 +400,7 @@ export default function PatientOverviewTab({
                                                                 aria-checked={enabled}
                                                                 onClick={() => onToggleAgent(agent.key, !enabled)}
                                                                 disabled={!available || savingCurrent}
-                                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 ${enabled ? 'bg-emerald-600' : 'bg-gray-300'} ${savingCurrent ? 'cursor-not-allowed opacity-70' : ''}`}
+                                                                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 ${enabled ? 'bg-emerald-600' : 'bg-gray-300'} ${savingCurrent ? 'cursor-not-allowed opacity-70' : ''}`}
                                                             >
                                                                 <span
                                                                     className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${enabled ? 'translate-x-5' : 'translate-x-1'}`}
@@ -346,65 +413,7 @@ export default function PatientOverviewTab({
                                                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 font-medium ${workerStatusClass}`}>
                                                             {workerLoading ? 'Updating...' : workerStatusLabel}
                                                         </span>
-                                                        {showOpenReportLink && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    if (agent.key === 'hsrCreator') {
-                                                                        openReportEditor(currentReportRow)
-                                                                        return
-                                                                    }
-                                                                    setActiveTab('report')
-                                                                }}
-                                                                className={`text-xs font-medium ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
-                                                            >
-                                                                {agent.key === 'hsrCreator' ? 'Open report' : 'Open reports'}
-                                                            </button>
-                                                        )}
-                                                        {showOpenAnalysisLink && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setActiveTab('analysis')}
-                                                                className={`text-xs font-semibold ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
-                                                            >
-                                                                Open analysis
-                                                            </button>
-                                                        )}
-                                                        {showOpenEquipmentLink && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setActiveTab('equipment')}
-                                                                className={`text-xs font-semibold ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
-                                                            >
-                                                                Open equipment
-                                                            </button>
-                                                        )}
-                                                        {showOpenQuoteLink && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setActiveTab('quotes')}
-                                                                className={`text-xs font-semibold ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
-                                                            >
-                                                                Open quotes
-                                                            </button>
-                                                        )}
-                                                        {showOpenSummaryLink && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    // Only the HSR Summariser card names its own style; every other
-                                                                    // card opens the patient's primary summary view (the FCA summary
-                                                                    // when they have one, otherwise the generic style). Summaries
-                                                                    // renders inside the Transcripts pane, so open that pane.
-                                                                    setSelectedSummaryStyle(agent.key === 'hsrSummariser' ? 'otf10-home-services' : '')
-                                                                    setSelectedSummaryTranscriptId(null)
-                                                                    setActiveTab('transcripts')
-                                                                }}
-                                                                className={`text-xs font-medium ${cardStyle?.actionLink || 'text-blue-700 underline-offset-2 hover:underline'}`}
-                                                            >
-                                                                Open summary
-                                                            </button>
-                                                        )}
+                                                        {!helperCardStyle && agentCardLinks}
                                                         {!helperCardStyle && (
                                                             <span>
                                                                 {agent.summary || (agent.key === 'reporting'
@@ -433,7 +442,20 @@ export default function PatientOverviewTab({
                                                         </p>
                                                     )}
 
-                                                    <div className="mt-auto flex items-end justify-between gap-3 pt-3">
+                                                    {/* The status chip stays under the title; on a helper card the
+                                                        report/summary links move to their own row pinned to the bottom
+                                                        edge, centred on the card so they read as the card's action. */}
+                                                    {helperCardStyle && hasAgentCardLinks && (
+                                                        <div className={`mt-auto flex flex-wrap items-center justify-center gap-2 text-xs ${cardStyle?.details || 'text-gray-600'}`}>
+                                                            {agentCardLinks}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Helper cards fix their height to the 3:2 artwork frame, so the
+                                                        settings control is pinned to the corner instead of trailing the
+                                                        text: an in-flow row is clipped by `overflow-hidden` as soon as
+                                                        the title wraps and the card runs out of height. */}
+                                                    <div className={helperCardStyle ? 'contents' : 'mt-auto flex items-end justify-between gap-3 pt-3'}>
                                                         {cardStyle?.badge && !cardStyle?.hideBadge && (
                                                             <span className={`inline-flex items-center rounded px-2 py-1 text-[10px] font-bold uppercase ${cardStyle.badgeClass}`}>
                                                                 {cardStyle.badge}
@@ -446,12 +468,12 @@ export default function PatientOverviewTab({
                                                                 aria-expanded={openAgentSettingsKey === agent.key}
                                                                 aria-label="Settings"
                                                                 title="Settings"
-                                                                className={`ml-auto inline-flex items-center rounded-md border text-xs font-medium ${helperCardStyle
-                                                                    ? 'border-gray-500 bg-white p-1.5 text-gray-900 hover:bg-gray-100'
-                                                                    : `gap-1.5 px-3 py-1.5 ${cardStyle?.settingsButton || 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}`}
+                                                                className={`inline-flex items-center rounded-md border text-xs font-medium ${helperCardStyle
+                                                                    ? 'absolute bottom-1.5 right-1.5 border-gray-500 bg-white p-1 text-gray-900 hover:bg-gray-100'
+                                                                    : `ml-auto gap-1.5 px-3 py-1.5 ${cardStyle?.settingsButton || 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}`}
                                                             >
                                                                 {helperCardStyle ? (
-                                                                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-4 w-4">
+                                                                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-3.5 w-3.5">
                                                                         <path
                                                                             d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
                                                                             stroke="currentColor"
