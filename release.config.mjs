@@ -1,16 +1,18 @@
 /**
- * semantic-release configuration.
+ * semantic-release configuration — the publish half of a release.
  *
  * Version numbers are derived from the Conventional Commits landed on the release branch, so
  * commit messages are the source of truth: `fix:` -> patch, `feat:` -> minor, and a `!` or
  * `BREAKING CHANGE:` footer -> major. See docs/developer-guide/versioning.md.
  *
- * Releases are cut from `main`, the production branch. A promoted commit is therefore tagged only
- * once it is what production runs, and a revert before promotion cannot leave a published release
- * behind. Cutting them on `preview` published a stable version ahead of the sign-off gate.
- *
- * The repository has a single version across all workspaces, so the release commits touch the
- * root manifests plus the app manifest that `next.config.js` reads its version from.
+ * `main` is protected, so a release cannot push its version commit into it. The version bump and
+ * the CHANGELOG entry are therefore prepared ahead of time on a `release/next` branch that reaches
+ * `main` through a pull request (scripts/semantic-release/release-pr.mjs). This configuration runs
+ * once that pull request has merged, and only tags the merge commit and publishes the GitHub
+ * Release: the manifests and the changelog are already on `main` by then, so nothing is written or
+ * pushed back to the branch. That is why no `@semantic-release/changelog`, `@semantic-release/npm`
+ * or `@semantic-release/git` step remains: each of them would duplicate that commit or try to push
+ * it to `main` again.
  *
  * @type {import('semantic-release').GlobalConfig}
  */
@@ -22,30 +24,9 @@ const config = {
     // conventional-changelog-writer@8 that @semantic-release/release-notes-generator@14 installs
     // ("requires conventional-changelog-writer@9 or newer") and fails every release.
     ['@semantic-release/release-notes-generator', { preset: 'conventionalcommits' }],
-    [
-      '@semantic-release/changelog',
-      { changelogFile: 'CHANGELOG.md', changelogTitle: '# Changelog' },
-    ],
-    [
-      '@semantic-release/npm',
-      // This package is deployed from the repository rather than distributed via npm, but the
-      // plugin is still required: its prepare step is what writes the version into package.json
-      // (and package-lock.json), which is what the app reads at build time.
-      { npmPublish: false },
-    ],
-    // Runs after @semantic-release/npm so the app manifest follows the version the root just
-    // received; the plugin also refreshes the lockfile for the new workspace version.
-    './scripts/semantic-release/sync-app-version.mjs',
-    [
-      '@semantic-release/git',
-      {
-        assets: ['CHANGELOG.md', 'package.json', 'package-lock.json', 'apps/core/package.json'],
-        // No `[skip ci]` anywhere in this message: GitHub applies that keyword to every workflow
-        // for a pull request whose head commit carries it, so it would silence the checks on a
-        // promotion request. A second run triggered by a PAT push of this commit is a no-op.
-        message: 'chore(release): ${nextRelease.version}\n\n${nextRelease.notes}',
-      },
-    ],
+    // The version is written by the release pull request, so refuse to tag any other one.
+    './scripts/semantic-release/verify-release-version.mjs',
+    // Creates the GitHub Release for the tag semantic-release itself creates and pushes.
     '@semantic-release/github',
   ],
 }

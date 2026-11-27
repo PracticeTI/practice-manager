@@ -28,7 +28,16 @@ back-merge are harmless.
 | Branch | Role |
 | --- | --- |
 | `preview` | Integration and sign-off. Feature pull requests land here; the Preview deployment is the pre-production gate. A push to it runs the `Lint` and private-overlay gates but publishes nothing. A repository ruleset requires `Supabase Preview`, `Lint`, `Schema`, `Private overlay` and `Secrets` before a pull request can merge; direct pushes are still possible, so the push-time gates remain the backstop. |
-| `main` | Production. Promoting `preview` into `main` is the release event: the merge publishes the version, tag and GitHub Release for exactly the code the production deployment will run. Classic branch protection requires `Lint` and `Private overlay`. |
+| `main` | Production. Promotions from `preview` land here, and so does the release pull request that turns what landed into a version. Classic branch protection requires `Lint` and `Private overlay` and refuses direct pushes; no release step bypasses it. |
+| `release/next` | The next release — the version bump and CHANGELOG entry — rebuilt from `main` on every push to it and merged back through a pull request. Bot-owned: never commit to it. |
+
+GitHub's **default branch is `preview`**, so a new pull request targets the integration branch
+instead of production. Vercel's production branch is a separate setting and stays `main`: the two
+are independent, and they must stay that way. Vercel applies a Preview environment variable to every
+branch that is not its production branch, so pointing Vercel's production branch at `preview` would
+flip the overlay variables — `preview` would build with the Production values and `main` would build
+as a preview. `main` keeps a ruleset that refuses its deletion; the default branch is the only branch
+GitHub protects that way on its own.
 
 Releases were cut on `preview` until [#35](https://github.com/PracticeTI/practice-manager/issues/35).
 That published a stable version ahead of the sign-off gate, so "released" could mean "not deployed",
@@ -39,49 +48,80 @@ released a second time — the tag already exists.
 Because only `main` cuts releases, a `feat:` or `fix:` merged into `preview` stays unreleased until
 the promotion request merges.
 
+## How a release is cut
+
+`main` only takes pull requests and requires the `Lint` and `Private overlay` checks, so
+semantic-release cannot push its release commit there. `@semantic-release/git` used to try, and the
+push was rejected with `GH006: Protected branch update failed` ([#50](https://github.com/PracticeTI/practice-manager/issues/50)).
+A release is therefore two pushes to `main`, and the repository itself records which half comes next:
+
+1. **A promotion merges.** The `Release PR` job asks semantic-release, in dry-run mode, for the next
+   version and its release notes, writes them into the manifests and [CHANGELOG.md](../../CHANGELOG.md),
+   and opens — or refreshes — `release/next` as a pull request into `main`.
+2. **That pull request merges.** `main` now carries a `package.json` version with no matching
+   `v<version>` tag. That mismatch is what the `Publish` job waits for: it tags the merge commit and
+   creates the GitHub Release, and pushes no commit to `main` at all.
+
+A push that only adds commits is never published on its own, and a release whose publish failed is
+retried by the next push to `main` — or by running the workflow manually — because the version is
+still untagged. `scripts/semantic-release/verify-release-version.mjs` fails the publish before the
+tag if the commits analyse to a version other than the one on `main`, so the tag, `package.json` and
+the changelog entry cannot drift apart.
+
+The release pull request is opened by `RELEASE_TOKEN` rather than the workflow's `GITHUB_TOKEN`:
+GitHub starts no workflow for a pull request created with `GITHUB_TOKEN`, so the required checks
+would never report. The token only needs to push a branch and open a pull request — it does **not**
+need to bypass `main`'s protection, because nothing is pushed to `main` any more.
+
 ## What happens on a release
 
-Merging a release-worthy commit into `main` triggers
-[.github/workflows/release.yml](../../.github/workflows/release.yml), which runs three jobs:
+A release-worthy commit reaching `main` runs
+[.github/workflows/release.yml](../../.github/workflows/release.yml), which has four jobs:
 
-**`Lint`** runs `npm run lint` (`eslint .`). It exits non-zero on any lint *error*, and the
-`Release` job is gated on it with `needs: lint`, so a lint regression fails the workflow instead of
-shipping inside a published release. Lint warnings do not fail the build. The same check also runs
-on pull requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml), and on every push
-to `preview` — together with the private-overlay guard, because the `preview` ruleset gates merges,
-not direct pushes, so a push there would otherwise never be scanned.
+**`Lint`** runs `npm run lint` (`eslint .`). It exits non-zero on any lint *error*, and both release
+jobs are gated on it with `needs: lint`, so a lint regression fails the workflow instead of shipping
+inside a published release. Lint warnings do not fail the build. The same check also runs on pull
+requests via [.github/workflows/ci.yml](../../.github/workflows/ci.yml), and on every push to
+`preview` — together with the private-overlay guard, because the `preview` ruleset gates merges, not
+direct pushes, so a push there would otherwise never be scanned.
 
-**`Release`** runs `semantic-release`, which:
+**`Release PR`** runs [release-pr.mjs](../../scripts/semantic-release/release-pr.mjs) on every push
+to `main`. semantic-release runs in dry-run mode, so this half computes the release without tagging
+or publishing anything:
 
-1. Computes the next version and generates release notes.
-2. Creates and pushes the `v<version>` git tag.
-3. Commits the new version into `package.json`, `package-lock.json` and `apps/core/package.json`
-   and prepends the release notes to [CHANGELOG.md](../../CHANGELOG.md) as
-   `chore(release): <version>`.
-4. Publishes a GitHub Release.
+1. Computes the next version and generates release notes from the commits since the last tag.
+2. Writes the version into `package.json` and `apps/core/package.json`, refreshes the lockfile, and
+   prepends the notes to [CHANGELOG.md](../../CHANGELOG.md) — the writes
+   `@semantic-release/changelog` and `@semantic-release/npm` used to make during the release itself.
+3. Commits them as `chore(release): <version>` on `release/next` and opens or updates a pull request
+   into `main`.
 
-The version commit deliberately carries no `[skip ci]`. GitHub applies that keyword to every
-workflow for a pull request whose head commit contains it, so a commit carrying it would leave a
-promotion request's required checks unreported. The version commit now lands on `main`, where it is
-ordinary history; if `RELEASE_TOKEN` is a PAT, its push starts this workflow again and the second
-run finds nothing to release.
+The commit deliberately carries no `[skip ci]`. GitHub applies that keyword to every workflow for a
+pull request whose head commit contains it, so a commit carrying it would leave the release
+request's own required checks unreported. Closing the request publishes nothing.
 
-**`Merge main into preview`** back-merges `main` into `preview` after a release. The release job is
-the only thing that writes to `main` alone, so this is what keeps `preview` carrying the version and
-CHANGELOG the release just wrote. Without it the next promotion conflicts on `package.json` and the
-Preview deployment keeps reporting the previous version. A conflicting back-merge fails the job with
-nothing pushed; resolve it locally with a normal `main` → `preview` merge.
+**`Publish`** runs `semantic-release` on a push whose `package.json` version has no tag. It tags the
+merge commit `v<version>` and creates the GitHub Release with the notes it generated for it.
+`release.config.mjs` has no prepare step left — no changelog, version bump or commit — because all of
+that is already on `main`; it analyses the commits, checks the version, and tags. It uses the
+workflow's own `GITHUB_TOKEN`, which is enough for a tag.
 
-Nothing is published to the public npm registry — `package.json` is `"private": true` and the npm
-plugin is configured with `npmPublish: false`.
+**`Merge main into preview`** back-merges `main` into `preview` after a successful publish. The
+release pull request only merges into `main`, so this is what keeps `preview` carrying the version
+and CHANGELOG it wrote. Without it the next promotion conflicts on `package.json` and the Preview
+deployment keeps reporting the previous version. A conflicting back-merge fails the job with nothing
+pushed; resolve it locally with a normal `main` → `preview` merge.
 
-Only `main` cuts releases. A promotion whose commits were already tagged creates no second release,
-because the tag already exists.
+Nothing is published to the public npm registry — `package.json` is `"private": true`, so the npm
+plugin is not part of the release at all.
+
+Only `main` tags a release. A promotion whose commits were already tagged creates no second release,
+because the version on `main` already has its tag.
 
 ## App version in the UI
 
 [next.config.js](../../apps/core/next.config.js) exposes `NEXT_PUBLIC_APP_VERSION` from the `package.json`
-version, which semantic-release keeps current, and the admin/public footers render it as
+version, which the release pull request keeps current, and the admin/public footers render it as
 `v<version> · <build time>`. Between releases the version stays constant, which is expected: the
 version identifies the release, and the build timestamp identifies the individual deployment.
 
@@ -112,47 +152,63 @@ Set `APP_ENV` on Cloud Run, which has no environment concept of its own.
 
 - Write Conventional Commit subjects. This is the only input to versioning, so a stray
   `update stuff` commit silently produces no release.
-- Do not edit the `version` field in `package.json`, and do not hand-edit released entries in
-  `CHANGELOG.md`. The release job overwrites both.
+- Do not edit the `version` field in `package.json`, hand-edit released entries in `CHANGELOG.md`,
+  or commit to `release/next`. The release pull request regenerates all three on every push to
+  `main`.
 - Do not commit git tags with the `v<major>.<minor>.<patch>` shape by hand; semantic-release uses
-  them to find the previous release.
+  them to find the previous release, and whether `package.json` has been tagged is what decides
+  which half of a release runs next.
 
 ## Previewing a release without publishing
 
 Run the `Release` workflow manually (Actions → Release → Run workflow) with **dry_run** enabled.
 It prints the version semantic-release would publish and the release notes it would generate,
-without creating a tag, commit, or release.
+without writing anything, opening a pull request, or creating a tag.
 
 ## Troubleshooting
 
-**The workflow fails with `RELEASE_TOKEN is not set`.** `main` requires a bypass actor: the branch
-protection rule constrains pushes as well as merges, and the Actions bot is never one. Create the
-`RELEASE_TOKEN` repository secret from a token belonging to an actor that bypasses the rule — a
-fine-grained PAT for a repository admin (this repository runs with `enforce_admins` disabled, so
-admins bypass), or a GitHub App installation token for an app on a ruleset's bypass list. The token
-needs `contents: write` to push the version commit and tag, and also `issues: write` and
-`pull-requests: write` for the post-release comments and labels: the `Release` job's `permissions:`
-block only governs `GITHUB_TOKEN`, which a non-dry-run release does not use, so any scope the token
-lacks is lost silently (`@semantic-release/github` logs the `403` and carries on). The workflow
-prefers `RELEASE_TOKEN` over `GITHUB_TOKEN` and fails on the missing secret before writing anything.
+**The workflow fails with `RELEASE_TOKEN is not set`.** The release pull request has to be opened by
+an actor, not by the workflow's `GITHUB_TOKEN`: GitHub starts no workflow for a pull request created
+with `GITHUB_TOKEN`, so the `Lint` and `Private overlay` checks `main` requires would never report
+and the request could never merge. Create the `RELEASE_TOKEN` repository secret from a fine-grained
+PAT for an account with `contents: write` and `pull-requests: write`. It needs no bypass — nothing
+is pushed to `main` — and no `issues: write`: the release comments and labels are posted by the
+`Publish` job's own `GITHUB_TOKEN`, whose permissions that job sets.
+
+**The release pull request never gets its checks.** It was created without triggering a workflow,
+which only happens when the request came from `GITHUB_TOKEN` rather than a PAT. Close it, fix
+`RELEASE_TOKEN`, and re-run the `Release PR` job — it updates the existing request instead of
+opening a second one.
+
+**`Publish` failed after the tag was created.** The version is tagged but has no GitHub Release, so
+later pushes only run `Release PR`. Publish the release for the tag by hand,
+`gh release create v<version> --notes-file <notes>`, or delete the tag and re-run the workflow.
+
+**`package.json is at X, but the commits on this branch analyse to Y`.** A release only publishes
+the version its release pull request merged, and `main` now carries commits that would release
+something else. Re-run the `Release PR` job, merge what it opens, and let `Publish` run again.
 
 **No release is created.** That is expected when the new commits are all non-release types
 (`docs:`, `chore:`, `refactor:` …), when the same commits were already released on `preview` before
-the switch, or when the promotion contained no release-worthy commit.
+the switch, or when the promotion contained no release-worthy commit. The `Release PR` job logs
+`No release-worthy commits since v<version>`.
 
 **`Error: ERELEASEBRANCHES`.** semantic-release was run on a branch other than `main`.
 
-**The promotion request is blocked on `Lint` / `Private overlay`.** Those checks are required on
-`main`, and GitHub starts no `pull_request` workflow at all when the pull request's head commit
-message contains `[skip ci]` (or `[ci skip]`, `[no ci]`, `[skip actions]`,
-`[actions skip]`) **anywhere in the message, not just in the subject** — so a body that merely
-mentions the keyword suppresses the run too, and the checks stay "Expected". Push a normal commit to
-`preview` to give the request a new head commit; do not add the keyword to a commit message.
+**A request is blocked on `Lint` / `Private overlay`.** Those checks are required on `main`, and
+GitHub starts no `pull_request` workflow at all when the pull request's head commit message contains
+`[skip ci]` (or `[ci skip]`, `[no ci]`, `[skip actions]`, `[actions skip]`) **anywhere in the
+message, not just in the subject** — so a body that merely mentions the keyword suppresses the run
+too, and the checks stay "Expected". Push a normal commit to `preview` to give a promotion request a
+new head commit, and let the release request be regenerated from `main`; do not add the keyword to a
+commit message.
 
 ## Adding a verification gate
 
-Releases are gated on `npm run lint`: the `Lint` job runs it and `release` declares
-`needs: lint`. They are **not** gated on `npm test` — CI runs only the two privacy suites. The full
-suite is green (958 passing, 1 skipped), so gating it is one more step in `Lint`, or a separate
-`verify` job that `release` needs, following the
+Releases are gated on `npm run lint`: the `Lint` job runs it, and both `Release PR` and `Publish`
+declare `needs: lint`. They are **not** gated on `npm test` — CI runs only the two privacy suites.
+What ships is what the release pull request carries, so the natural place for anything heavier is
+[.github/workflows/ci.yml](../../.github/workflows/ci.yml), which already reports the checks `main`
+requires: a regression there keeps the request from merging. A gate that must also hold at tag time
+is another job that `publish` declares `needs:`, following the
 [upstream recipe](https://semantic-release.org/recipes/ci-configurations/github-actions/).
